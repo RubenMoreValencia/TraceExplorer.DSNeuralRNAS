@@ -1,0 +1,49 @@
+source("tools/release/lib_release.R")
+root <- .te_release_assert_root()
+cat("TraceExplorer Release Candidate preflight\n")
+d <- read.dcf(file.path(root, "DESCRIPTION"))
+checks <- list(
+  package = identical(unname(d[1, "Package"]), "TraceExplorer.DSNeuralRNAS"),
+  baseline_version = identical(unname(d[1, "Version"]), "0.10.2"),
+  release_contract = file.exists(file.path(root, "inst/release/RELEASE_CONTRACT.csv")),
+  shiny_app = file.exists(file.path(root, "inst/shiny/app/app.R")),
+  testthat = requireNamespace("testthat", quietly = TRUE),
+  roxygen2 = requireNamespace("roxygen2", quietly = TRUE),
+  shiny = requireNamespace("shiny", quietly = TRUE),
+  plotly = requireNamespace("plotly", quietly = TRUE),
+  DT = requireNamespace("DT", quietly = TRUE),
+  formalspec = requireNamespace("DSNeuralRNAS.FormalSpec", quietly = TRUE)
+)
+auth <- unname(d[1, "Authors@R"])
+checks$maintainer_email <- grepl("email[[:space:]]*=", auth)
+
+baseline_path <- file.path(root, "inst/release/RC1_BASELINE_CODE_MANIFEST.csv")
+checks$baseline_manifest <- file.exists(baseline_path)
+if (checks$baseline_manifest) {
+  baseline <- utils::read.csv(baseline_path, stringsAsFactors = FALSE)
+  current <- .te_release_md5_tree(
+    root,
+    include = c("^R/", "^inst/shiny/app/app\\.R$", "^inst/extdata/contracts/", "^NAMESPACE$")
+  )
+  cmp <- merge(baseline, current, by = "file", suffixes = c("_baseline", "_current"), all = TRUE)
+  checks$core_matches_approved_v0_10_2 <- !anyNA(cmp$md5_baseline) &&
+    !anyNA(cmp$md5_current) &&
+    all(cmp$md5_baseline == cmp$md5_current)
+} else {
+  checks$core_matches_approved_v0_10_2 <- FALSE
+}
+
+res <- data.frame(check = names(checks), status = unlist(checks), stringsAsFactors = FALSE)
+print(res, row.names = FALSE)
+utils::write.csv(res, file.path(.te_release_dir(root), "preflight_detail.csv"), row.names = FALSE)
+if (!all(res$status)) {
+  .te_release_write("00_preflight", "FAIL", paste(res$check[!res$status], collapse = ", "), root)
+  if (!checks$maintainer_email) {
+    cat("\nMaintainer email is missing. Configure it explicitly with:\n")
+    cat("Sys.setenv(TRACEEXPLORER_MAINTAINER_EMAIL = 'rmorev@unp.edu.pe')\n")
+    cat("source('tools/release/00_configure_maintainer.R')\n")
+  }
+  stop("Release preflight failed.", call. = FALSE)
+}
+.te_release_write("00_preflight", "PASS", "All release prerequisites available.", root)
+cat("PRECHECK PASS\n")

@@ -1,0 +1,3006 @@
+library(shiny)
+library(plotly)
+library(DT)
+library(TraceExplorer.DSNeuralRNAS)
+
+te_register_default_bridges()
+
+`%||%` <- function(x, y) {
+  if (is.null(x) || length(x) == 0L || all(is.na(x))) y else x
+}
+
+ui <- fluidPage(
+  tags$head(
+    tags$script(
+      HTML(
+        "
+        $(document).on('shiny:connected', function() {
+          var supported = false;
+          try {
+            var canvas = document.createElement('canvas');
+            supported = !!(
+              window.WebGLRenderingContext &&
+              (
+                canvas.getContext('webgl2') ||
+                canvas.getContext('webgl') ||
+                canvas.getContext('experimental-webgl')
+              )
+            );
+          } catch (e) {
+            supported = false;
+          }
+          Shiny.setInputValue(
+            'webgl_supported',
+            supported,
+            {priority: 'event'}
+          );
+        });
+        "
+      )
+    ),
+    tags$style(HTML("
+      body { background: #fafafa; }
+      .te-card {
+        background: white;
+        border: 1px solid #e3e3e3;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 14px;
+      }
+      .te-eq {
+        font-family: Georgia, serif;
+        font-size: 18px;
+        padding: 10px;
+        margin: 6px 0;
+        background: #f7f7f7;
+        border-left: 4px solid #444;
+      }
+      .te-ok { color: #1f6b3a; font-weight: 700; }
+      .te-fail { color: #8c2020; font-weight: 700; }
+      .te-muted { color: #666; }
+      .te-stage {
+        padding: 8px 10px;
+        border-bottom: 1px solid #ececec;
+      }
+      .control-label { font-weight: 600; }
+      .plotly.html-widget { background: white; border-radius: 8px; }
+      .nav-tabs > li > a { font-size: 14px; font-weight: 600; }
+      .te-visual-note { font-size: 14px; line-height: 1.45; }
+    "))
+  ),
+  titlePanel("TraceExplorer.DSNeuralRNAS"),
+  sidebarLayout(
+    sidebarPanel(
+      radioButtons(
+        "mode",
+        "Modo",
+        choices = c(
+          "Didáctico" = "student",
+          "Investigación" = "research"
+        ),
+        selected = "student"
+      ),
+      selectInput(
+        "source_mode",
+        "Fuente",
+        choices = c(
+          "Ejemplo didáctico MLP" = "demo",
+          "Ejemplo multicapa — arquitectura" = "multilayer_demo",
+          "MLP real — DSNeuralRNAS" = "rnas_mlp",
+          "MLP real — ML.DSNeuralRNAS" = "ml_variable",
+          "CSV de trayectoria" = "csv",
+          "RDS experimento artículo E1–E5" = "article_rds",
+          "Navegador proyecto artículo E1–E5" = "article_project",
+          "RDS de objeto DSNeuralRNAS" = "rds"
+        )
+      ),
+      conditionalPanel(
+        "input.source_mode == 'csv'",
+        fileInput(
+          "csv_file",
+          "Cargar CSV",
+          accept = c(".csv")
+        )
+      ),
+      conditionalPanel(
+        "input.source_mode == 'article_rds'",
+        fileInput(
+          "article_rds_file",
+          "Cargar RDS del proyecto E1–E5",
+          accept = c(".rds")
+        )
+      ),
+      conditionalPanel(
+        "input.source_mode == 'article_project'",
+        textInput(
+          "article_project_dir",
+          "Directorio del proyecto E1–E5",
+          value = "",
+          placeholder = "Ruta a DSNeuralRNAS_FormalSpec_Article"
+        ),
+        actionButton(
+          "scan_article_project",
+          "Escanear proyecto"
+        ),
+        selectInput(
+          "article_project_experiment",
+          "Experimento",
+          choices = character(0)
+        ),
+        selectInput(
+          "article_project_role",
+          "Rol de evidencia",
+          choices = character(0)
+        ),
+        selectInput(
+          "article_project_case",
+          "Caso",
+          choices = character(0)
+        ),
+        actionButton(
+          "open_article_project_case",
+          "Abrir caso"
+        )
+      ),
+      conditionalPanel(
+        "input.source_mode == 'rds'",
+        fileInput(
+          "rds_file",
+          "Cargar RDS",
+          accept = c(".rds")
+        )
+      ),
+      selectInput(
+        "space",
+        "Espacio 3D",
+        choices = c(
+          "Dinámica del aprendizaje" = "learning",
+          "Dinámica paramétrica" = "parameter",
+          "Dinámica de control" = "control"
+        )
+      ),
+      checkboxInput(
+        "run_fs",
+        "Aplicar Psi / Gamma / Phi con FormalSpec congelado",
+        value = FALSE
+      ),
+      helpText(
+        "TraceExplorer observa y traza. No recalibra FormalSpec y no promueve etiquetas legacy."
+      )
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel(
+          "Inicio",
+          div(
+            class = "te-card",
+            h3("Filosofía observable del aprendizaje"),
+            p(
+              "El resultado final no describe por sí solo cómo aprendió el modelo. ",
+              "TraceExplorer conserva y recorre la trayectoria de aprendizaje."
+            ),
+            div(
+              class = "te-eq",
+              HTML(
+                "&theta;<sub>k+1</sub> = &theta;<sub>k</sub> - ",
+                "&eta;<sub>k</sub>&nabla;L(&theta;<sub>k</sub>)"
+              )
+            ),
+            uiOutput("source_summary")
+          ),
+          uiOutput("didactic_route")
+        ),
+        tabPanel(
+          "Traza 2D",
+          plotlyOutput("loss_plot", height = "520px")
+        ),
+        tabPanel(
+          "Exploración 3D",
+          uiOutput("space_status"),
+          uiOutput("webgl_trace_status"),
+          conditionalPanel(
+            "input.webgl_supported === true",
+            plotlyOutput("trace3d", height = "650px")
+          ),
+          conditionalPanel(
+            "input.webgl_supported === false",
+            plotlyOutput("trace3d_fallback", height = "620px")
+          ),
+          div(
+            class = "te-card",
+            uiOutput("point_inspector")
+          )
+        ),
+        tabPanel(
+          "Matemática",
+          div(
+            class = "te-card",
+            h3("Especificación observable"),
+            div(
+              class = "te-eq",
+              HTML("L<sub>k</sub> = L(&theta;<sub>k</sub>)")
+            ),
+            div(
+              class = "te-eq",
+              HTML(
+                "&Delta;L<sub>k</sub> = ",
+                "L<sub>k</sub> - L<sub>k-1</sub>"
+              )
+            ),
+            div(
+              class = "te-eq",
+              HTML(
+                "G<sub>k</sub> = ",
+                "||&nabla;L(&theta;<sub>k</sub>)||<sub>2</sub>"
+              )
+            ),
+            div(
+              class = "te-eq",
+              HTML(
+                "P<sub>k</sub> = ||&theta;<sub>k</sub>||<sub>2</sub>"
+              )
+            ),
+            div(
+              class = "te-eq",
+              HTML(
+                "V<sub>k</sub> = ",
+                "||&theta;<sub>k</sub> - ",
+                "&theta;<sub>k-1</sub>||<sub>2</sub>"
+              )
+            ),
+            p(
+              "En un MLP, θ concatena pesos y sesgos de todas las capas. ",
+              "Las normas globales permiten observar redes de distinta escala ",
+              "sin afirmar equivalencia entre parámetros individuales."
+            ),
+            DTOutput("contract_table")
+          )
+        ),
+        tabPanel(
+          "Psi · Gamma · Phi",
+          uiOutput("fs_status"),
+          uiOutput("fs_explanation"),
+          plotlyOutput("semantic_plot", height = "560px"),
+          conditionalPanel(
+            "input.run_fs == true",
+            h4("Resumen FormalSpec"),
+            DTOutput("fs_summary_table")
+          )
+        ),
+        tabPanel(
+          "Arquitectura",
+          uiOutput("architecture_note"),
+          DTOutput("architecture_table"),
+          conditionalPanel(
+            "output.has_parameter_map",
+            h4("Dinámica por bloque"),
+            plotlyOutput("block_plot", height = "520px"),
+            h4("Dinámica por capa"),
+            plotlyOutput("layer_plot", height = "520px")
+          )
+        ),
+        tabPanel(
+          "MLP",
+          uiOutput("mlp_capability_note"),
+          DTOutput("capability_table"),
+          conditionalPanel(
+            "output.has_parameter_map",
+            h4("Trayectorias de parámetros registradas"),
+            selectInput(
+              "parameter_layer",
+              "Capa",
+              choices = c("Todas" = "__all__")
+            ),
+            plotlyOutput("parameter_plot", height = "560px")
+          )
+        ),
+        tabPanel(
+          "FormalSpec 3D",
+          uiOutput("fs3d_status"),
+          uiOutput("webgl_fs_status"),
+          conditionalPanel(
+            "input.webgl_supported === true",
+            plotlyOutput("regime3d", height = "650px")
+          ),
+          conditionalPanel(
+            "input.webgl_supported === false",
+            plotlyOutput("regime3d_fallback", height = "620px")
+          )
+        ),
+        tabPanel(
+          "Cadena de evidencia",
+          div(
+            class = "te-card",
+            h3("Evidence Stack DSNeuralRNAS"),
+            p(
+              "Dato → Resultado → Trayectoria → FormalSpec → Referencia analítica"
+            ),
+            p(
+              class = "te-muted",
+              "No todos los casos requieren los cinco niveles. La ausencia de un nivel también es evidencia sobre el alcance disponible."
+            )
+          ),
+          h4("Cinco niveles"),
+          DTOutput("evidence_stack_levels"),
+          h4("Ruta didáctica"),
+          uiOutput("evidence_didactic_route"),
+          h4("Decisiones de implementación"),
+          DTOutput("evidence_stack_decisions"),
+          h4("Referencia analítica"),
+          DTOutput("evidence_analytical_reference"),
+          h4("Contraste analítico"),
+          DTOutput("evidence_analytical_contrast"),
+          h4("Puntos de extensión futura"),
+          DTOutput("evidence_extension_points")
+        ),
+        tabPanel(
+          "Artículo E1–E5",
+          uiOutput("article_status"),
+          DTOutput("article_summary_table"),
+          conditionalPanel(
+            "input.source_mode == 'article_project'",
+            h4("Resumen del inventario"),
+            DTOutput("article_project_inventory_summary"),
+            h4("Objetos filtrados"),
+            DTOutput("article_project_inventory_table")
+          ),
+          div(
+            class = "te-card",
+            h4("Regla de evidencia"),
+            p(
+              "Si el RDS contiene un pipeline FormalSpec del artículo, ",
+              "TraceExplorer reutiliza esa semántica existente; no vuelve a ",
+              "clasificar Psi/Gamma/Phi."
+            ),
+            p(
+              class = "te-muted",
+              "Objetos sin trayectoria se mantienen como controles/resúmenes ",
+              "y no se convierten en pseudo-trazas."
+            )
+          )
+        ),
+        tabPanel(
+          "Comparar E1–E5",
+          div(
+            class = "te-card",
+            h3("Comparación científica de casos del artículo"),
+            p(
+              "Seleccione varios objetos del catálogo. Las trayectorias se ",
+              "alinean solo por τ; no se interpolan ni se fusionan estados."
+            ),
+            p(
+              class = "te-muted",
+              "FormalSpec se compara únicamente cuando la semántica ya existe ",
+              "en el pipeline del artículo."
+            )
+          ),
+          conditionalPanel(
+            "input.source_mode == 'article_project'",
+            selectizeInput(
+              "article_compare_rows",
+              "Casos a comparar",
+              choices = character(0),
+              multiple = TRUE,
+              options = list(
+                placeholder = "Seleccione dos o más casos"
+              )
+            ),
+            selectInput(
+              "article_comparison_loss_scale",
+              "Escala de pérdida",
+              choices = c(
+                "Absoluta L_k" = "absolute",
+                "Relativa L_k / L_0" = "relative",
+                "Log relativa log(L_k / L_0)" = "log_relative"
+              ),
+              selected = "log_relative"
+            ),
+            checkboxInput(
+              "article_comparison_show_boundaries",
+              "Mostrar fronteras Phi existentes",
+              value = TRUE
+            ),
+            actionButton(
+              "build_article_comparison",
+              "Construir comparación"
+            )
+          ),
+          uiOutput("article_comparison_status"),
+          plotlyOutput(
+            "article_comparison_loss_plot",
+            height = "520px"
+          ),
+          h4("Índice de evidencia"),
+          DTOutput("article_comparison_index"),
+          h4("FormalSpec existente"),
+          DTOutput("article_comparison_fs"),
+          h4("Fronteras del artículo"),
+          DTOutput("article_comparison_boundaries"),
+          h4("Cronología semántica Gamma"),
+          plotlyOutput(
+            "article_semantic_timeline_plot",
+            height = "560px"
+          ),
+          h4("Transiciones Phi"),
+          plotlyOutput(
+            "article_transition_timeline_plot",
+            height = "500px"
+          ),
+          h4("Ocupación descriptiva de regímenes"),
+          DTOutput("article_regime_occupancy_table"),
+          h4("Firma de transiciones"),
+          DTOutput("article_transition_signature_table")
+        ),
+        tabPanel(
+          "Comparación",
+          div(
+            class = "te-card",
+            h3("Comparación multiejecución"),
+            p(
+              "Cada corrida conserva su propia traza, arquitectura y procedencia. ",
+              "El tiempo normalizado se usa solo como eje común; no interpola ",
+              "ni fusiona estados."
+            ),
+            actionButton(
+              "build_multirun",
+              "Construir ejemplo real multiejecución"
+            )
+          ),
+          uiOutput("multirun_status"),
+          plotlyOutput("multirun_loss_plot", height = "520px"),
+          h4("Resumen descriptivo"),
+          DTOutput("multirun_index_table"),
+          h4("Arquitecturas"),
+          DTOutput("multirun_arch_table"),
+          conditionalPanel(
+            "input.run_fs == true",
+            h4("FormalSpec por corrida"),
+            DTOutput("multirun_fs_table"),
+            plotlyOutput("multirun_semantic_plot", height = "560px")
+          )
+        ),
+        tabPanel(
+          "Trazabilidad",
+          DTOutput("trace_table")
+        ),
+        tabPanel(
+          "Protocolo",
+          uiOutput("protocol_status"),
+          DTOutput("protocol_table")
+        ),
+        tabPanel(
+          "Bridges",
+          DTOutput("bridge_table"),
+          div(
+            class = "te-card",
+            h4("Regla de diseño"),
+            p(
+              "Un bridge traduce una estructura fuente a la traza canónica. ",
+              "No modifica la matemática del productor, no inventa una historia ",
+              "ausente y no convierte automáticamente semántica legacy en ",
+              "semántica FormalSpec."
+            )
+          )
+        )
+      )
+    )
+  )
+)
+
+server <- function(input, output, session) {
+  visual_spec <- reactive({
+    te_visual_spec(input$mode)
+  })
+
+
+  article_project_catalog <- eventReactive(
+    input$scan_article_project,
+    {
+      req(nzchar(input$article_project_dir))
+
+      te_article_catalog(
+        input$article_project_dir,
+        inspect = TRUE
+      )
+    },
+    ignoreInit = TRUE
+  )
+
+  observeEvent(
+    article_project_catalog(),
+    {
+      cat <- article_project_catalog()
+      exps <- sort(unique(cat$experiment))
+      exps <- exps[!is.na(exps)]
+
+      updateSelectInput(
+        session,
+        "article_project_experiment",
+        choices = exps,
+        selected = if (length(exps)) exps[[1L]] else character(0)
+      )
+    },
+    ignoreInit = TRUE
+  )
+
+  observeEvent(
+    article_project_catalog(),
+    {
+      cat <- article_project_catalog()
+
+      choice_values <- seq_len(nrow(cat))
+      choice_labels <- paste0(
+        "[",
+        cat$experiment,
+        "/",
+        ifelse(is.na(cat$stage), "-", cat$stage),
+        "] ",
+        cat$case_id,
+        " · ",
+        cat$role
+      )
+
+      updateSelectizeInput(
+        session,
+        "article_compare_rows",
+        choices = stats::setNames(
+          choice_values,
+          choice_labels
+        ),
+        selected = character(0),
+        server = TRUE
+      )
+    },
+    ignoreInit = TRUE
+  )
+
+  project_filtered_by_experiment <- reactive({
+    req(article_project_catalog())
+
+    exp <- input$article_project_experiment
+    if (is.null(exp) || !nzchar(exp)) {
+      return(article_project_catalog()[0, , drop = FALSE])
+    }
+
+    te_article_filter(
+      article_project_catalog(),
+      experiment = exp
+    )
+  })
+
+  observeEvent(
+    project_filtered_by_experiment(),
+    {
+      d <- project_filtered_by_experiment()
+      roles <- c(
+        "Todos" = "__all__",
+        stats::setNames(
+          sort(unique(d$role)),
+          sort(unique(d$role))
+        )
+      )
+
+      updateSelectInput(
+        session,
+        "article_project_role",
+        choices = roles,
+        selected = "__all__"
+      )
+    },
+    ignoreInit = TRUE
+  )
+
+  article_project_filtered <- reactive({
+    d <- project_filtered_by_experiment()
+
+    role <- input$article_project_role
+    if (
+      !is.null(role) &&
+      nzchar(role) &&
+      !identical(role, "__all__")
+    ) {
+      d <- te_article_filter(
+        d,
+        role = role
+      )
+    }
+
+    d
+  })
+
+  observeEvent(
+    article_project_filtered(),
+    {
+      d <- article_project_filtered()
+
+      if (!nrow(d)) {
+        updateSelectInput(
+          session,
+          "article_project_case",
+          choices = character(0),
+          selected = character(0)
+        )
+        return()
+      }
+
+      choice_values <- seq_len(nrow(d))
+      choice_labels <- paste0(
+        "[",
+        d$role,
+        "] ",
+        d$case_id,
+        ifelse(
+          is.na(d$stage) | !nzchar(d$stage),
+          "",
+          paste0(" · ", d$stage)
+        )
+      )
+
+      updateSelectInput(
+        session,
+        "article_project_case",
+        choices = stats::setNames(
+          choice_values,
+          choice_labels
+        ),
+        selected = choice_values[[1L]]
+      )
+    },
+    ignoreInit = TRUE
+  )
+
+  project_article_case <- eventReactive(
+    input$open_article_project_case,
+    {
+      d <- article_project_filtered()
+      req(nrow(d) > 0L)
+
+      idx <- suppressWarnings(
+        as.integer(input$article_project_case)
+      )
+      req(
+        length(idx) == 1L,
+        is.finite(idx),
+        idx >= 1L,
+        idx <= nrow(d)
+      )
+
+      te_article_load_rds(
+        d$path[[idx]]
+      )
+    },
+    ignoreInit = TRUE
+  )
+
+  article_comparison_set <- eventReactive(
+    input$build_article_comparison,
+    {
+      req(article_project_catalog())
+
+      rows <- suppressWarnings(
+        as.integer(input$article_compare_rows)
+      )
+
+      req(
+        length(rows) >= 2L,
+        all(is.finite(rows))
+      )
+
+      te_article_load_case_set(
+        article_project_catalog(),
+        rows = rows,
+        comparison_id = paste0(
+          "article-compare-",
+          input$build_article_comparison
+        )
+      )
+    },
+    ignoreInit = TRUE
+  )
+
+  article_case <- reactive({
+    if (identical(input$source_mode, "article_rds")) {
+      req(input$article_rds_file)
+
+      return(
+        te_article_load_rds(
+          input$article_rds_file$datapath,
+          source_name = input$article_rds_file$name
+        )
+      )
+    }
+
+    if (identical(input$source_mode, "article_project")) {
+      req(project_article_case())
+      return(project_article_case())
+    }
+
+    NULL
+  })
+
+  raw_object <- reactive({
+    if (input$source_mode == "demo") {
+      return(te_demo_mlp_trace())
+    }
+
+    if (input$source_mode == "multilayer_demo") {
+      return(
+        te_demo_multilayer_trace(
+          dims = c(3L, 6L, 4L, 1L),
+          n_updates = 60L,
+          seed = 321L
+        )
+      )
+    }
+
+    if (input$source_mode == "rnas_mlp") {
+      return(te_example_rnas_mlp())
+    }
+
+    if (input$source_mode == "ml_variable") {
+      return(te_example_ml_variable())
+    }
+
+    if (input$source_mode %in% c("article_rds", "article_project")) {
+      art <- article_case()
+
+      if (!inherits(art$trace, "te_trace")) {
+        return(NULL)
+      }
+
+      return(art$trace)
+    }
+
+    if (input$source_mode == "csv") {
+      req(input$csv_file)
+      d <- read.csv(
+        input$csv_file$datapath,
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
+      return(
+        te_trace(
+          d,
+          provenance = list(
+            experiment_id = "uploaded-csv",
+            source_class = "data.frame",
+            source_package = "external_data",
+            source_package_version = "unknown",
+            adapter_mode = "uploaded_csv",
+            dataset_id = input$csv_file$name,
+            model_id = "uploaded-trace",
+            optimizer = "source_defined"
+          )
+        )
+      )
+    }
+
+    req(input$rds_file)
+    readRDS(input$rds_file$datapath)
+  })
+
+  trace <- reactive({
+    obj <- raw_object()
+
+    if (is.null(obj)) {
+      return(NULL)
+    }
+
+    if (inherits(obj, "te_trace")) {
+      return(obj)
+    }
+
+    detected <- te_detect_source(obj)
+    if (!isTRUE(detected$has_registered_bridge[[1L]])) {
+      stop(
+        paste0(
+          "No hay bridge registrado para la clase: ",
+          paste(class(obj), collapse = ", ")
+        ),
+        call. = FALSE
+      )
+    }
+    te_bridge(obj)
+  })
+
+  has_dynamic_trace <- reactive({
+    inherits(trace(), "te_trace")
+  })
+
+  dynamic_trace_required_message <- reactive({
+    if (
+      input$source_mode %in% c("article_rds", "article_project") &&
+      !is.null(article_case())
+    ) {
+      st <- te_article_display_state(article_case())
+      return(st$message[[1L]])
+    }
+
+    "La fuente actual no contiene una trayectoria dinámica."
+  })
+
+  current_evidence_stack <- reactive({
+    if (input$source_mode %in% c("article_rds", "article_project")) {
+      art <- article_case()
+      req(art)
+      return(te_evidence_stack(art))
+    }
+
+    tr <- trace()
+    req(inherits(tr, "te_trace"))
+    te_evidence_stack(tr)
+  })
+
+  fs_analysis <- reactive({
+    if (!isTRUE(input$run_fs)) {
+      return(NULL)
+    }
+
+    if (input$source_mode %in% c("article_rds", "article_project")) {
+      art <- article_case()
+
+      if (inherits(
+        art$analysis,
+        "te_formalspec_analysis"
+      )) {
+        return(art$analysis)
+      }
+    }
+
+    tr <- trace()
+
+    if (!inherits(tr, "te_trace")) {
+      return(NULL)
+    }
+
+    te_run_formalspec(tr)
+  })
+
+
+  multirun <- eventReactive(
+    input$build_multirun,
+    {
+      te_example_multirun_ml(
+        iter = 60L,
+        seeds = c(101L, 202L, 303L),
+        d_hidden = c(4L, 5L, 7L),
+        eta = 0.04
+      )
+    },
+    ignoreInit = TRUE
+  )
+
+  multirun_fs <- reactive({
+    req(multirun())
+    req(isTRUE(input$run_fs))
+    te_multirun_formalspec(multirun())
+  })
+
+  output$source_summary <- renderUI({
+    tr <- trace()
+
+    if (!inherits(tr, "te_trace")) {
+      if (input$source_mode %in% c("article_rds", "article_project")) {
+        req(article_case())
+        s <- te_article_case_summary(article_case())
+        st <- te_article_display_state(article_case())
+
+        return(
+          tagList(
+            p(
+              strong("Fuente: "),
+              s$object_class[[1L]]
+            ),
+            p(
+              strong("Rol: "),
+              s$role[[1L]]
+            ),
+            p(
+              strong("Estado: "),
+              st$state[[1L]]
+            ),
+            p(
+              class = "te-muted",
+              st$message[[1L]]
+            )
+          )
+        )
+      }
+
+      return(
+        p(
+          class = "te-muted",
+          "No hay trayectoria dinámica cargada."
+        )
+      )
+    }
+
+    d <- te_trace_data(tr)
+    p <- tr$provenance
+
+    tagList(
+      p(
+        strong("Fuente: "),
+        p$source_class %||% "desconocida"
+      ),
+      p(
+        strong("Conversión: "),
+        p$adapter_mode %||% "desconocida"
+      ),
+      p(
+        strong("Filas de trayectoria: "),
+        nrow(d)
+      ),
+      p(
+        class = "te-muted",
+        "Campos disponibles: ",
+        paste(names(d), collapse = ", ")
+      )
+    )
+  })
+
+  output$didactic_route <- renderUI({
+    if (!identical(input$mode, "student")) {
+      return(NULL)
+    }
+
+    div(
+      class = "te-card",
+      h4("Ruta de comprensión"),
+      div(
+        class = "te-stage",
+        strong("1. Actualización → "),
+        "qué cambia en θ."
+      ),
+      div(
+        class = "te-stage",
+        strong("2. Traza → "),
+        "cómo evoluciona el aprendizaje."
+      ),
+      div(
+        class = "te-stage",
+        strong("3. Observables → "),
+        "pérdida, gradiente, η, norma y velocidad."
+      ),
+      div(
+        class = "te-stage",
+        strong("4. Ventanas → "),
+        "cómo se resume comportamiento local."
+      ),
+      div(
+        class = "te-stage",
+        strong("5. Psi → "),
+        "régimen candidato local."
+      ),
+      div(
+        class = "te-stage",
+        strong("6. Gamma → "),
+        "estado confirmado por persistencia."
+      ),
+      div(
+        class = "te-stage",
+        strong("7. Phi → "),
+        "evento cuando cambia el estado confirmado."
+      )
+    )
+  })
+
+  output$loss_plot <- renderPlotly({
+    validate(
+      need(
+        has_dynamic_trace(),
+        dynamic_trace_required_message()
+      )
+    )
+
+    d <- te_trace_data(trace())
+    vs <- visual_spec()
+
+    d$hover_text <- paste0(
+      "k=", d$iter,
+      "<br>loss=", signif(d$loss, 7),
+      if ("grad_norm" %in% names(d)) paste0("<br>||grad||=", signif(d$grad_norm, 6)) else "",
+      if ("eta" %in% names(d)) paste0("<br>eta=", signif(d$eta, 6)) else "",
+      if ("param_norm" %in% names(d)) paste0("<br>||theta||=", signif(d$param_norm, 6)) else "",
+      if ("param_velocity" %in% names(d)) paste0("<br>||delta theta||=", signif(d$param_velocity, 6)) else ""
+    )
+
+    p <- plot_ly(
+      d,
+      x = ~iter,
+      y = ~loss,
+      type = "scatter",
+      mode = "lines+markers",
+      line = list(width = vs$line_width),
+      marker = list(size = vs$marker_size),
+      text = ~hover_text,
+      hovertemplate = "%{text}<extra></extra>",
+      name = "Pérdida"
+    )
+
+    end_points <- d[c(1L, nrow(d)), , drop = FALSE]
+    end_points$point_label <- c("Inicio", "Final")
+
+    p <- add_markers(
+      p,
+      data = end_points,
+      x = ~iter,
+      y = ~loss,
+      inherit = FALSE,
+      symbol = ~point_label,
+      size = I(vs$highlight_size),
+      text = ~paste0(
+        point_label,
+        "<br>k=", iter,
+        "<br>loss=", signif(loss, 7)
+      ),
+      hovertemplate = "%{text}<extra></extra>",
+      name = "Inicio / final",
+      showlegend = TRUE
+    )
+
+    p |>
+      layout(
+        xaxis = te_plotly_axis_spec("Iteración k", vs),
+        yaxis = te_plotly_axis_spec("Pérdida L_k", vs),
+        title = list(
+          text = "Trayectoria de pérdida",
+          font = list(size = vs$title_size)
+        ),
+        font = list(size = vs$tick_size),
+        legend = list(
+          orientation = "h",
+          x = 0,
+          y = 1.12,
+          font = list(size = vs$legend_size),
+          title = list(text = "Evidencia")
+        ),
+        margin = list(
+          l = vs$plot_margin,
+          r = 30,
+          b = vs$plot_margin,
+          t = 90
+        )
+      ) |>
+      config(displaylogo = FALSE)
+  })
+
+  space_availability <- reactive({
+    tr <- trace()
+
+    if (!inherits(tr, "te_trace")) {
+      return(
+        data.frame(
+          space = c("learning", "parameter", "control"),
+          label = c(
+            "Dinámica del aprendizaje",
+            "Dinámica paramétrica",
+            "Dinámica de control"
+          ),
+          available = c(FALSE, FALSE, FALSE),
+          reason = rep(
+            dynamic_trace_required_message(),
+            3L
+          ),
+          stringsAsFactors = FALSE
+        )
+      )
+    }
+
+    te_space_availability(tr)
+  })
+
+  resolved_space <- reactive({
+    tr <- trace()
+
+    if (!inherits(tr, "te_trace")) {
+      return(NULL)
+    }
+
+    te_resolve_space(
+      tr,
+      requested = input$space
+    )
+  })
+
+  observeEvent(
+    space_availability(),
+    {
+      a <- space_availability()
+      valid <- a[a$available, , drop = FALSE]
+
+      if (!nrow(valid)) {
+        updateSelectInput(
+          session,
+          "space",
+          choices = character(0),
+          selected = character(0)
+        )
+        return()
+      }
+
+      choices <- stats::setNames(
+        valid$space,
+        valid$label
+      )
+
+      selected <- input$space
+      if (
+        is.null(selected) ||
+        !(selected %in% valid$space)
+      ) {
+        selected <- valid$space[[1L]]
+      }
+
+      updateSelectInput(
+        session,
+        "space",
+        choices = choices,
+        selected = selected
+      )
+    },
+    ignoreInit = FALSE
+  )
+
+  space_data <- reactive({
+    tr <- trace()
+    req(inherits(tr, "te_trace"))
+    req(!is.null(resolved_space()))
+
+    selected <- resolved_space()$space[[1L]]
+
+    switch(
+      selected,
+      learning = te_learning_space(tr),
+      parameter = te_parameter_space(tr),
+      control = te_control_space(tr),
+      stop(
+        "Resolved 3D space is not supported.",
+        call. = FALSE
+      )
+    )
+  })
+
+  output$space_status <- renderUI({
+    a <- space_availability()
+
+    if (!has_dynamic_trace()) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            strong("Exploración 3D no disponible para esta fuente.")
+          ),
+          p(
+            class = "te-muted",
+            dynamic_trace_required_message()
+          )
+        )
+      )
+    }
+
+    r <- resolved_space()
+    unavailable <- a[!a$available, , drop = FALSE]
+
+    notes <- if (nrow(unavailable)) {
+      lapply(
+        seq_len(nrow(unavailable)),
+        function(i) {
+          p(
+            class = "te-muted",
+            paste0(
+              unavailable$label[[i]],
+              ": ",
+              unavailable$reason[[i]]
+            )
+          )
+        }
+      )
+    } else {
+      list(
+        p(
+          class = "te-muted",
+          "La fuente actual permite los tres espacios 3D."
+        )
+      )
+    }
+
+    tagList(
+      div(
+        class = "te-card",
+        p(
+          strong("Vista 3D activa: "),
+          r$label[[1L]]
+        ),
+        if (isTRUE(r$fallback_used) &&
+            !is.na(r$requested[[1L]])) {
+          p(
+            class = "te-muted",
+            paste0(
+              "La vista solicitada '",
+              r$requested[[1L]],
+              "' no está disponible para esta fuente; ",
+              "se seleccionó automáticamente una vista válida."
+            )
+          )
+        },
+        notes
+      )
+    )
+  })
+
+  output$trace3d <- renderPlotly({
+    validate(
+      need(
+        has_dynamic_trace(),
+        dynamic_trace_required_message()
+      )
+    )
+
+    sp <- space_data()
+    vs <- visual_spec()
+    active_label <- resolved_space()$label[[1L]]
+
+    plot_ly(
+      sp,
+      source = "A",
+      x = ~x,
+      y = ~y,
+      z = ~z,
+      key = ~iter,
+      customdata = ~iter,
+      type = "scatter3d",
+      mode = "lines+markers",
+      line = list(width = vs$line_width),
+      marker = list(
+        size = vs$marker_size,
+        opacity = 0.95,
+        line = list(width = 1.2)
+      ),
+      hovertemplate = paste0(
+        "k=%{customdata}<br>",
+        "x=%{x:.5g}<br>",
+        "y=%{y:.5g}<br>",
+        "z=%{z:.5g}<extra></extra>"
+      ),
+      name = active_label
+    ) |>
+      layout(
+        scene = list(
+          xaxis = te_plotly_axis_spec(sp$x_label[[1L]], vs),
+          yaxis = te_plotly_axis_spec(sp$y_label[[1L]], vs),
+          zaxis = te_plotly_axis_spec(sp$z_label[[1L]], vs)
+        ),
+        title = list(
+          text = paste0("Espacio 3D — ", active_label),
+          font = list(size = vs$title_size)
+        ),
+        legend = list(
+          font = list(size = vs$legend_size)
+        ),
+        margin = list(l = 20, r = 20, b = 25, t = 80)
+      ) |>
+      config(displaylogo = FALSE)
+  })
+
+  output$webgl_trace_status <- renderUI({
+    policy <- te_webgl_display_policy(
+      input$webgl_supported
+    )
+
+    div(
+      class = "te-card",
+      p(
+        class = if (policy$state == "webgl") "te-ok" else "te-muted",
+        policy$message
+      )
+    )
+  })
+
+  output$trace3d_fallback <- renderPlotly({
+    validate(
+      need(
+        has_dynamic_trace(),
+        dynamic_trace_required_message()
+      )
+    )
+
+    sp <- space_data()
+    vs <- visual_spec()
+
+    plot_ly(
+      sp,
+      x = ~x,
+      y = ~y,
+      key = ~iter,
+      customdata = ~iter,
+      type = "scatter",
+      mode = "lines+markers",
+      line = list(width = vs$line_width),
+      marker = list(
+        size = vs$marker_size + 2,
+        line = list(width = 1.2)
+      ),
+      text = ~paste0(
+        "k=", iter,
+        "<br>z=", signif(z, 6)
+      ),
+      hovertemplate = paste0(
+        "%{text}<br>",
+        "x=%{x:.5g}<br>",
+        "y=%{y:.5g}<extra></extra>"
+      ),
+      name = "Proyección 2D"
+    ) |>
+      layout(
+        xaxis = te_plotly_axis_spec(sp$x_label[[1L]], vs),
+        yaxis = te_plotly_axis_spec(sp$y_label[[1L]], vs),
+        title = list(
+          text = paste0(
+            "Proyección 2D de respaldo — z = ",
+            sp$z_label[[1L]],
+            " disponible en tooltip"
+          ),
+          font = list(size = vs$title_size)
+        ),
+        font = list(size = vs$tick_size),
+        legend = list(font = list(size = vs$legend_size)),
+        margin = list(
+          l = vs$plot_margin,
+          r = 30,
+          b = vs$plot_margin,
+          t = 90
+        )
+      ) |>
+      config(displaylogo = FALSE)
+  })
+
+  output$point_inspector <- renderUI({
+    if (!has_dynamic_trace()) {
+      return(
+        p(
+          class = "te-muted",
+          dynamic_trace_required_message()
+        )
+      )
+    }
+
+    ev <- event_data(
+      "plotly_click",
+      source = "A"
+    )
+
+    if (is.null(ev)) {
+      return(
+        p(
+          class = "te-muted",
+          "Seleccione un punto de la trayectoria 3D para inspeccionarlo."
+        )
+      )
+    }
+
+    k <- ev$key
+    if (is.null(k) && !is.null(ev$customdata)) {
+      k <- ev$customdata
+    }
+    k <- suppressWarnings(as.numeric(k))
+
+    if (!length(k) || !is.finite(k)) {
+      return(
+        p(
+          class = "te-muted",
+          "El punto fue seleccionado, pero la iteración no pudo resolverse."
+        )
+      )
+    }
+
+    a <- if (isTRUE(input$run_fs)) fs_analysis() else NULL
+    d <- te_traceability_index(trace(), a)
+    row <- d[d$iter == k, , drop = FALSE]
+
+    if (!nrow(row)) {
+      return(NULL)
+    }
+
+    tagList(
+      h4(paste0("Punto de traza: k = ", k)),
+      tags$pre(
+        paste(
+          paste(
+            names(row),
+            unlist(row[1, ]),
+            sep = ": "
+          ),
+          collapse = "\n"
+        )
+      )
+    )
+  })
+
+  output$contract_table <- renderDT({
+    datatable(
+      te_contract(),
+      rownames = FALSE,
+      options = list(
+        pageLength = 15,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$bridge_table <- renderDT({
+    datatable(
+      te_bridge_registry(),
+      rownames = FALSE,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE
+      )
+    )
+  })
+
+
+  output$evidence_stack_levels <- renderDT({
+    req(current_evidence_stack())
+
+    datatable(
+      te_evidence_stack_levels(
+        current_evidence_stack()
+      ),
+      rownames = FALSE,
+      options = list(
+        pageLength = 5,
+        scrollX = TRUE,
+        dom = "t"
+      )
+    )
+  })
+
+  output$evidence_didactic_route <- renderUI({
+    stack <- current_evidence_stack()
+    levels <- te_evidence_stack_levels(stack)
+
+    cards <- lapply(seq_len(nrow(levels)), function(i) {
+      lv <- levels[i, , drop = FALSE]
+
+      status_class <- if (
+        lv$availability %in%
+          c("available", "available_existing")
+      ) {
+        "te-ok"
+      } else {
+        "te-muted"
+      }
+
+      div(
+        class = "te-card",
+        h4(
+          paste0(
+            lv$level,
+            ". ",
+            lv$name
+          )
+        ),
+        p(
+          strong("Pregunta: "),
+          lv$primary_question
+        ),
+        p(
+          strong("Estado: "),
+          span(
+            class = status_class,
+            lv$availability
+          )
+        ),
+        p(
+          strong("Rol formal: "),
+          lv$formal_role
+        ),
+        p(
+          strong("Regla didáctica: "),
+          lv$didactic_rule
+        ),
+        p(
+          class = "te-muted",
+          lv$implementation_rule
+        )
+      )
+    })
+
+    do.call(tagList, cards)
+  })
+
+  output$evidence_stack_decisions <- renderDT({
+    req(current_evidence_stack())
+
+    datatable(
+      te_evidence_stack_decisions(
+        current_evidence_stack()
+      ),
+      rownames = FALSE,
+      options = list(
+        pageLength = 12,
+        scrollX = TRUE,
+        dom = "t"
+      )
+    )
+  })
+
+  output$evidence_analytical_reference <- renderDT({
+    stack <- current_evidence_stack()
+    ref <- stack$analytical_reference
+
+    if (!inherits(
+      ref,
+      "te_analytical_reference"
+    )) {
+      return(
+        datatable(
+          data.frame(
+            status = "No existe una referencia analítica declarada para este caso.",
+            stringsAsFactors = FALSE
+          ),
+          rownames = FALSE,
+          options = list(dom = "t")
+        )
+      )
+    }
+
+    datatable(
+      te_analytical_reference_data(ref),
+      rownames = FALSE,
+      options = list(
+        scrollX = TRUE,
+        dom = "t"
+      )
+    )
+  })
+
+  output$evidence_analytical_contrast <- renderDT({
+    req(current_evidence_stack())
+
+    d <- te_evidence_analytical_contrast(
+      current_evidence_stack()
+    )
+
+    if (!nrow(d)) {
+      d <- data.frame(
+        status = "Contraste analítico no aplicable para este caso.",
+        stringsAsFactors = FALSE
+      )
+    }
+
+    datatable(
+      d,
+      rownames = FALSE,
+      options = list(dom = "t")
+    )
+  })
+
+  output$evidence_extension_points <- renderDT({
+    datatable(
+      te_evidence_extension_points(),
+      rownames = FALSE,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = "t"
+      )
+    )
+  })
+
+  output$article_status <- renderUI({
+    if (!(input$source_mode %in% c("article_rds", "article_project"))) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            class = "te-muted",
+            "Seleccione una fuente de artículo E1–E5 para inspeccionar evidencia."
+          )
+        )
+      )
+    }
+
+    if (identical(input$source_mode, "article_project") &&
+        is.null(project_article_case())) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            class = "te-muted",
+            "Escanee el proyecto, seleccione un caso y pulse 'Abrir caso'."
+          )
+        )
+      )
+    }
+
+    art <- article_case()
+    s <- te_article_case_summary(art)
+    st <- te_article_display_state(art)
+
+    tagList(
+      div(
+        class = "te-card",
+        p(
+          strong("Caso: "),
+          s$case_id[[1L]]
+        ),
+        p(
+          strong("Rol detectado: "),
+          s$role[[1L]]
+        ),
+        p(
+          strong("Semántica FormalSpec existente: "),
+          if (isTRUE(s$existing_article_semantics[[1L]])) {
+            "sí — reutilizada sin reclasificación"
+          } else {
+            "no"
+          }
+        ),
+        p(
+          strong("Estado de visualización: "),
+          st$state[[1L]]
+        ),
+        p(
+          class = "te-muted",
+          st$message[[1L]]
+        ),
+        p(
+          class = "te-muted",
+          paste0(
+            "MD5 de fuente: ",
+            s$source_md5[[1L]]
+          )
+        )
+      )
+    )
+  })
+
+  output$article_summary_table <- renderDT({
+    if (!(input$source_mode %in% c("article_rds", "article_project"))) {
+      return(
+        datatable(
+          te_article_experiment_registry(),
+          rownames = FALSE,
+          options = list(dom = "t")
+        )
+      )
+    }
+
+    if (identical(input$source_mode, "article_project") &&
+        is.null(project_article_case())) {
+      return(
+        datatable(
+          te_article_experiment_registry(),
+          rownames = FALSE,
+          options = list(dom = "t")
+        )
+      )
+    }
+
+    datatable(
+      te_article_case_summary(article_case()),
+      rownames = FALSE,
+      options = list(
+        dom = "t",
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$article_comparison_status <- renderUI({
+    if (!identical(input$source_mode, "article_project")) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            class = "te-muted",
+            "Use el Navegador proyecto artículo E1–E5 para habilitar esta comparación."
+          )
+        )
+      )
+    }
+
+    if (input$build_article_comparison < 1L) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            class = "te-muted",
+            "Seleccione al menos dos objetos del catálogo y construya la comparación."
+          )
+        )
+      )
+    }
+
+    set <- article_comparison_set()
+    idx <- te_article_case_set_index(set)
+
+    n_dynamic <- sum(!is.na(idx$n_states))
+    n_semantic <- sum(
+      idx$existing_article_semantics,
+      na.rm = TRUE
+    )
+
+    div(
+      class = "te-card",
+      p(
+        class = "te-ok",
+        paste0(
+          nrow(idx),
+          " evidencias seleccionadas; ",
+          n_dynamic,
+          " con trayectoria; ",
+          n_semantic,
+          " con semántica FormalSpec original."
+        )
+      ),
+      p(
+        class = "te-muted",
+        "No se recalibra FormalSpec ni se genera una semántica promedio."
+      )
+    )
+  })
+
+  output$article_comparison_loss_plot <- renderPlotly({
+    req(article_comparison_set())
+
+    scale <- input$article_comparison_loss_scale
+    if (is.null(scale) || !nzchar(scale)) {
+      scale <- "log_relative"
+    }
+
+    d <- te_article_case_set_loss_view(
+      article_comparison_set(),
+      scale = scale
+    )
+    vs <- visual_spec()
+
+    validate(
+      need(
+        nrow(d) > 0L,
+        "Los casos seleccionados no contienen trayectorias dinámicas."
+      ),
+      need(
+        any(is.finite(d$display_value)),
+        paste0(
+          "La escala seleccionada no puede calcularse con estas pérdidas. ",
+          "Use la escala absoluta."
+        )
+      )
+    )
+
+    d$display_case <- paste0(
+      d$experiment,
+      " · ",
+      d$case_id,
+      " · ",
+      d$role
+    )
+
+    d$hover_text <- paste0(
+      "Caso=", d$display_case,
+      "<br>iter=", d$iter,
+      "<br>tau=", signif(d$tau, 5),
+      "<br>L=", signif(d$loss, 7),
+      "<br>valor mostrado=", signif(d$display_value, 7)
+    )
+
+    y_title <- unique(d$display_label)
+    y_title <- y_title[!is.na(y_title)][1L]
+
+    p <- plot_ly(
+      d,
+      x = ~tau,
+      y = ~display_value,
+      split = ~display_case,
+      type = "scatter",
+      mode = "lines+markers",
+      line = list(width = vs$line_width),
+      marker = list(size = max(4, vs$marker_size - 2)),
+      text = ~hover_text,
+      hovertemplate = "%{text}<extra></extra>"
+    )
+
+    if (isTRUE(input$article_comparison_show_boundaries)) {
+      ev <- te_article_case_set_boundary_overlay(
+        article_comparison_set(),
+        scale = scale
+      )
+
+      ev <- ev[
+        is.finite(ev$tau) & is.finite(ev$display_value),
+        , drop = FALSE
+      ]
+
+      if (nrow(ev)) {
+        ev$display_case <- paste0(
+          ev$experiment,
+          " · ",
+          ev$case_id,
+          " · ",
+          ev$role
+        )
+
+        p <- add_markers(
+          p,
+          data = ev,
+          x = ~tau,
+          y = ~display_value,
+          inherit = FALSE,
+          symbol = ~transition,
+          size = I(vs$phi_size),
+          text = ~paste0(
+            "Phi=", transition,
+            "<br>Caso=", display_case,
+            "<br>", from_regime,
+            " -> ", to_regime,
+            "<br>iter=", end_iter
+          ),
+          hovertemplate = "%{text}<br>tau=%{x:.4f}<extra></extra>",
+          name = "Fronteras Phi",
+          showlegend = TRUE,
+          marker = list(line = list(width = vs$boundary_line_width))
+        )
+      }
+    }
+
+    p |>
+      layout(
+        xaxis = te_plotly_axis_spec("Tiempo normalizado tau", vs, c(0, 1)),
+        yaxis = te_plotly_axis_spec(y_title, vs),
+        title = list(
+          text = paste0("Comparación de trayectorias — ", y_title),
+          font = list(size = vs$title_size)
+        ),
+        font = list(size = vs$tick_size),
+        legend = list(
+          orientation = "h",
+          x = 0,
+          y = 1.16,
+          font = list(size = vs$legend_size),
+          title = list(text = "Caso / evento")
+        ),
+        margin = list(
+          l = vs$plot_margin,
+          r = 30,
+          b = vs$plot_margin,
+          t = 110
+        )
+      ) |>
+      config(displaylogo = FALSE)
+  })
+
+  output$article_comparison_index <- renderDT({
+    req(article_comparison_set())
+
+    datatable(
+      te_article_case_set_index(
+        article_comparison_set()
+      ),
+      rownames = FALSE,
+      options = list(
+        pageLength = 12,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$article_comparison_fs <- renderDT({
+    req(article_comparison_set())
+
+    datatable(
+      te_article_case_set_formalspec_summary(
+        article_comparison_set()
+      ),
+      rownames = FALSE,
+      options = list(
+        pageLength = 12,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$article_comparison_boundaries <- renderDT({
+    req(article_comparison_set())
+
+    datatable(
+      te_article_case_set_boundaries(
+        article_comparison_set()
+      ),
+      rownames = FALSE,
+      options = list(
+        pageLength = 12,
+        scrollX = TRUE
+      )
+    )
+  })
+
+
+  output$article_semantic_timeline_plot <- renderPlotly({
+    req(article_comparison_set())
+
+    d <- te_article_case_set_semantic_lanes(
+      article_comparison_set()
+    )
+    vs <- visual_spec()
+
+    validate(
+      need(
+        nrow(d) > 0L,
+        "Los casos seleccionados no contienen semántica FormalSpec original."
+      )
+    )
+
+    case_levels <- unique(d$display_case)
+    p <- plot_ly()
+
+    for (case_label in case_levels) {
+      g <- d[d$display_case == case_label, , drop = FALSE]
+      g <- g[order(g$tau, g$window_id), , drop = FALSE]
+
+      p <- add_trace(
+        p,
+        data = g,
+        x = ~tau,
+        y = ~display_case,
+        type = "scatter",
+        mode = "lines",
+        line = list(width = vs$line_width),
+        name = case_label,
+        legendgroup = paste0("case::", case_label),
+        showlegend = FALSE,
+        hoverinfo = "skip"
+      )
+    }
+
+    p <- add_markers(
+      p,
+      data = d,
+      x = ~tau,
+      y = ~display_case,
+      color = ~confirmed_regime,
+      text = ~paste0(
+        "Caso=", display_case,
+        "<br>Psi candidato=", candidate_regime,
+        "<br>Gamma confirmado=", confirmed_regime,
+        "<br>ventana=", window_id,
+        "<br>inicio=", start_iter,
+        "<br>fin=", end_iter
+      ),
+      hovertemplate = "%{text}<br>tau=%{x:.4f}<extra></extra>",
+      marker = list(
+        size = vs$gamma_size,
+        line = list(width = 1.5)
+      )
+    )
+
+    p |>
+      layout(
+        xaxis = te_plotly_axis_spec("Tiempo normalizado tau", vs, c(0, 1)),
+        yaxis = c(
+          te_plotly_axis_spec("Caso científico", vs),
+          list(
+            categoryorder = "array",
+            categoryarray = rev(case_levels)
+          )
+        ),
+        legend = list(
+          orientation = "h",
+          x = 0,
+          y = 1.16,
+          font = list(size = vs$legend_size),
+          title = list(text = "Gamma confirmado")
+        ),
+        title = list(
+          text = "Cronología semántica Gamma — Psi disponible en tooltip",
+          font = list(size = vs$title_size)
+        ),
+        margin = list(
+          l = max(100, vs$plot_margin),
+          r = 30,
+          b = vs$plot_margin,
+          t = 110
+        )
+      ) |>
+      config(displaylogo = FALSE)
+  })
+
+  output$article_transition_timeline_plot <- renderPlotly({
+    req(article_comparison_set())
+
+    ev <- te_article_case_set_transition_timeline(
+      article_comparison_set()
+    )
+    vs <- visual_spec()
+
+    validate(
+      need(
+        nrow(ev) > 0L,
+        "Los casos seleccionados no contienen fronteras Phi existentes."
+      )
+    )
+
+    ev$display_case <- paste0(ev$experiment, " · ", ev$case_id)
+
+    plot_ly(
+      ev,
+      x = ~tau,
+      y = ~display_case,
+      type = "scatter",
+      mode = "markers",
+      symbol = ~transition,
+      color = ~transition,
+      marker = list(
+        size = vs$phi_size,
+        line = list(width = vs$boundary_line_width)
+      ),
+      text = ~paste0(
+        "Phi=", transition,
+        "<br>Caso=", display_case,
+        "<br>", from_regime,
+        " -> ", to_regime,
+        "<br>iter=", boundary_iter,
+        "<br>tipo=", boundary_type,
+        "<br>localización=", localization
+      ),
+      hovertemplate = "%{text}<br>tau=%{x:.4f}<extra></extra>"
+    ) |>
+      layout(
+        xaxis = te_plotly_axis_spec("Tiempo normalizado tau", vs, c(0, 1)),
+        yaxis = te_plotly_axis_spec("Caso científico", vs),
+        title = list(
+          text = "Transiciones Phi existentes",
+          font = list(size = vs$title_size)
+        ),
+        font = list(size = vs$tick_size),
+        legend = list(
+          orientation = "h",
+          x = 0,
+          y = 1.16,
+          font = list(size = vs$legend_size),
+          title = list(text = "Tipo de transición Phi")
+        ),
+        margin = list(
+          l = max(100, vs$plot_margin),
+          r = 30,
+          b = vs$plot_margin,
+          t = 110
+        )
+      ) |>
+      config(displaylogo = FALSE)
+  })
+
+  output$article_regime_occupancy_table <- renderDT({
+    req(article_comparison_set())
+
+    datatable(
+      te_article_case_set_regime_occupancy(
+        article_comparison_set()
+      ),
+      rownames = FALSE,
+      options = list(
+        pageLength = 12,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$article_transition_signature_table <- renderDT({
+    req(article_comparison_set())
+
+    datatable(
+      te_article_case_set_transition_signature(
+        article_comparison_set()
+      ),
+      rownames = FALSE,
+      options = list(
+        pageLength = 12,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$article_project_inventory_summary <- renderDT({
+    req(article_project_catalog())
+
+    datatable(
+      te_article_catalog_summary(
+        article_project_catalog()
+      ),
+      rownames = FALSE,
+      options = list(
+        pageLength = 15,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$article_project_inventory_table <- renderDT({
+    req(article_project_catalog())
+
+    d <- article_project_filtered()
+
+    cols <- intersect(
+      c(
+        "experiment",
+        "stage",
+        "case_id",
+        "role",
+        "display_state",
+        "dynamic_eligible",
+        "bridge_eligible",
+        "object_class",
+        "source_md5"
+      ),
+      names(d)
+    )
+
+    datatable(
+      d[, cols, drop = FALSE],
+      rownames = FALSE,
+      options = list(
+        pageLength = 12,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$multirun_status <- renderUI({
+    if (input$build_multirun < 1L) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            class = "te-muted",
+            "Pulse el botón para ejecutar tres MLP reales de ML.DSNeuralRNAS con diferentes anchos y semillas."
+          )
+        )
+      )
+    }
+
+    mr <- multirun()
+    idx <- te_multirun_index(mr)
+
+    div(
+      class = "te-card",
+      p(
+        class = "te-ok",
+        paste0(
+          nrow(idx),
+          " corridas independientes construidas."
+        )
+      ),
+      p(
+        class = "te-muted",
+        "No se realiza ranking ni promedio semántico entre corridas."
+      )
+    )
+  })
+
+  output$multirun_loss_plot <- renderPlotly({
+    req(multirun())
+    d <- te_multirun_trace_data(multirun())
+
+    plot_ly(
+      d,
+      x = ~tau,
+      y = ~loss,
+      split = ~run_label,
+      type = "scatter",
+      mode = "lines",
+      hovertemplate = paste0(
+        "tau=%{x:.4f}<br>",
+        "loss=%{y:.6g}<extra></extra>"
+      )
+    ) |>
+      layout(
+        xaxis = list(
+          title = "Tiempo normalizado de aprendizaje τ"
+        ),
+        yaxis = list(title = "Pérdida"),
+        title = "Trayectorias independientes sobre un eje temporal común"
+      )
+  })
+
+  output$multirun_index_table <- renderDT({
+    req(multirun())
+
+    datatable(
+      te_multirun_index(multirun()),
+      rownames = FALSE,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$multirun_arch_table <- renderDT({
+    req(multirun())
+
+    datatable(
+      te_multirun_architectures(multirun()),
+      rownames = FALSE,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$multirun_fs_table <- renderDT({
+    req(multirun_fs())
+
+    datatable(
+      te_multirun_formalspec_summary(
+        multirun_fs()
+      ),
+      rownames = FALSE,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$multirun_semantic_plot <- renderPlotly({
+    req(multirun_fs())
+
+    d <- te_multirun_semantic_data(
+      multirun_fs()
+    )
+
+    plot_ly(
+      d,
+      x = ~end_iter,
+      y = ~confirmed_regime,
+      split = ~run_label,
+      type = "scatter",
+      mode = "markers",
+      text = ~candidate_regime,
+      hovertemplate = paste0(
+        "fin ventana=%{x}<br>",
+        "Gamma=%{y}<br>",
+        "Psi=%{text}<extra></extra>"
+      )
+    ) |>
+      layout(
+        xaxis = list(
+          title = "Iteración / fin de ventana"
+        ),
+        yaxis = list(
+          title = "Régimen confirmado"
+        ),
+        title = "Gamma por corrida — FormalSpec congelado"
+      )
+  })
+
+  output$trace_table <- renderDT({
+    if (!has_dynamic_trace()) {
+      return(
+        datatable(
+          data.frame(
+            status = dynamic_trace_required_message(),
+            stringsAsFactors = FALSE
+          ),
+          rownames = FALSE,
+          options = list(dom = "t")
+        )
+      )
+    }
+
+    a <- if (isTRUE(input$run_fs)) fs_analysis() else NULL
+    datatable(
+      te_traceability_index(trace(), a),
+      rownames = FALSE,
+      options = list(
+        pageLength = 12,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$fs_status <- renderUI({
+    if (
+      input$source_mode %in% c("article_rds", "article_project") &&
+      !has_dynamic_trace() &&
+      is.null(fs_analysis())
+    ) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            strong("FormalSpec dinámico no disponible para este RDS.")
+          ),
+          p(
+            class = "te-muted",
+            dynamic_trace_required_message()
+          )
+        )
+      )
+    }
+
+    if (!isTRUE(input$run_fs)) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            "Active FormalSpec desde el panel lateral para ejecutar ",
+            "Trace → Observables → Windows → Psi → Gamma → Phi."
+          )
+        )
+      )
+    }
+
+    pf <- te_formalspec_preflight(error = FALSE)
+    ok <- all(pf$status == "PASS")
+
+    div(
+      class = "te-card",
+      p(
+        class = if (ok) "te-ok" else "te-fail",
+        if (ok) {
+          paste0(
+            "FormalSpec preflight PASS. Freeze: ",
+            "DSFS-1.0.0-FIRST-ARTICLE."
+          )
+        } else {
+          "FormalSpec preflight FAIL. Revise la pestaña Protocolo."
+        }
+      )
+    )
+  })
+
+  output$fs_explanation <- renderUI({
+    if (!isTRUE(input$run_fs) ||
+        !identical(input$mode, "student")) {
+      return(NULL)
+    }
+
+    div(
+      class = "te-card",
+      h4("Qué ocurre matemáticamente"),
+      div(
+        class = "te-eq",
+        HTML(
+          "W<sub>j</sub> = ",
+          "(z<sub>a</sub>,...,z<sub>b</sub>)"
+        )
+      ),
+      p(
+        "FormalSpec primero agrupa la trayectoria en ventanas locales. ",
+        "Una ventana no es todavía un régimen."
+      ),
+      div(
+        class = "te-eq",
+        HTML(
+          "&Psi;<sub>&tau;</sub>(q<sub>j</sub>) ",
+          "&rarr; R&#770;<sub>j</sub>"
+        )
+      ),
+      p(
+        "Psi clasifica el comportamiento local de la ventana."
+      ),
+      div(
+        class = "te-eq",
+        HTML(
+          "&Gamma;(R&#770;<sub>1</sub>,...,R&#770;<sub>j</sub>) ",
+          "&rarr; R<sub>j</sub>"
+        )
+      ),
+      p(
+        "Gamma exige persistencia antes de confirmar un estado."
+      ),
+      div(
+        class = "te-eq",
+        HTML(
+          "&Phi;(R<sub>j-1</sub>,R<sub>j</sub>) ",
+          "&rarr; evento"
+        )
+      ),
+      p(
+        "Phi registra una frontera cuando cambia el estado confirmado. ",
+        "No es una política de control ni una recomendación."
+      )
+    )
+  })
+
+  output$semantic_plot <- renderPlotly({
+    req(input$run_fs)
+    a <- fs_analysis()
+    validate(
+      need(
+        inherits(a, "te_formalspec_analysis"),
+        "No existe análisis FormalSpec dinámico para esta fuente."
+      )
+    )
+
+    cnd <- DSNeuralRNAS.FormalSpec::dsfs_regime_candidates_data(
+      a$candidates
+    )
+    cnf <- DSNeuralRNAS.FormalSpec::dsfs_confirmed_regimes_data(
+      a$confirmed
+    )
+    ev <- DSNeuralRNAS.FormalSpec::dsfs_boundary_events_data(
+      a$boundaries
+    )
+
+    p <- plot_ly()
+
+    p <- add_markers(
+      p,
+      data = cnd,
+      x = ~end_iter,
+      y = ~candidate_regime,
+      name = "Psi",
+      hovertemplate = paste0(
+        "fin ventana=%{x}<br>",
+        "Psi=%{y}<extra></extra>"
+      )
+    )
+
+    p <- add_markers(
+      p,
+      data = cnf,
+      x = ~end_iter,
+      y = ~confirmed_regime,
+      name = "Gamma",
+      symbol = I("diamond"),
+      hovertemplate = paste0(
+        "fin ventana=%{x}<br>",
+        "Gamma=%{y}<extra></extra>"
+      )
+    )
+
+    if (nrow(ev) > 0L) {
+      p <- add_markers(
+        p,
+        data = ev,
+        x = ~boundary_iter,
+        y = ~to_regime,
+        name = "Phi",
+        symbol = I("x"),
+        marker = list(size = 11),
+        text = ~boundary_type,
+        hovertemplate = paste0(
+          "Phi en k=%{x}<br>",
+          "destino=%{y}<br>",
+          "evento=%{text}<extra></extra>"
+        )
+      )
+    }
+
+    layout(
+      p,
+      xaxis = list(title = "Iteración / fin de ventana"),
+      yaxis = list(title = "Estado semántico"),
+      title = "Psi, Gamma y Phi sobre la misma trayectoria"
+    )
+  })
+
+  output$fs_summary_table <- renderDT({
+    req(input$run_fs)
+    a <- fs_analysis()
+
+    validate(
+      need(
+        inherits(a, "te_formalspec_analysis"),
+        "No existe análisis FormalSpec dinámico para esta fuente."
+      )
+    )
+
+    datatable(
+      te_formalspec_summary(a),
+      rownames = FALSE,
+      options = list(
+        dom = "t",
+        scrollX = TRUE
+      )
+    )
+  })
+
+
+
+  output$architecture_note <- renderUI({
+    tr <- trace()
+
+    if (!inherits(tr, "te_trace")) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            class = "te-muted",
+            dynamic_trace_required_message()
+          )
+        )
+      )
+    }
+
+    if (!inherits(tr$architecture, "te_architecture")) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            "La fuente no declara todavía un contrato arquitectónico explícito."
+          ),
+          p(
+            class = "te-muted",
+            "La trayectoria global puede seguir explorándose; TraceExplorer no inventa capas ausentes."
+          )
+        )
+      )
+    }
+
+    a <- tr$architecture
+
+    div(
+      class = "te-card",
+      p(
+        class = "te-ok",
+        paste0(
+          "Arquitectura declarada: ",
+          a$n_layers,
+          " capas entrenables; ",
+          a$n_parameters,
+          " parámetros."
+        )
+      ),
+      p(
+        "La vista por capa descompone la dinámica global sin modificar FormalSpec."
+      )
+    )
+  })
+
+  output$architecture_table <- renderDT({
+    tr <- trace()
+
+    if (!inherits(tr, "te_trace")) {
+      return(
+        datatable(
+          data.frame(
+            status = dynamic_trace_required_message(),
+            stringsAsFactors = FALSE
+          ),
+          rownames = FALSE,
+          options = list(dom = "t")
+        )
+      )
+    }
+
+    if (!inherits(tr$architecture, "te_architecture")) {
+      return(
+        datatable(
+          data.frame(
+            status = "No architecture contract available",
+            stringsAsFactors = FALSE
+          ),
+          rownames = FALSE,
+          options = list(dom = "t")
+        )
+      )
+    }
+
+    datatable(
+      te_architecture_data(tr$architecture),
+      rownames = FALSE,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$block_plot <- renderPlotly({
+    tr <- trace()
+    req(inherits(tr, "te_trace"))
+    req(inherits(tr$parameter_map, "te_parameter_map"))
+
+    b <- te_parameter_block_dynamics(tr)
+
+    plot_ly(
+      b,
+      x = ~iter,
+      y = ~block_norm,
+      split = ~block_id,
+      type = "scatter",
+      mode = "lines",
+      hovertemplate = paste0(
+        "k=%{x}<br>",
+        "norma=%{y:.6g}<extra></extra>"
+      )
+    ) |>
+      layout(
+        xaxis = list(title = "Iteración"),
+        yaxis = list(title = "Norma del bloque"),
+        title = "Magnitud paramétrica por bloque"
+      )
+  })
+
+  output$layer_plot <- renderPlotly({
+    tr <- trace()
+    req(inherits(tr, "te_trace"))
+    req(inherits(tr$parameter_map, "te_parameter_map"))
+
+    d <- te_layer_dynamics(tr)
+
+    plot_ly(
+      d,
+      x = ~iter,
+      y = ~layer_velocity,
+      split = ~layer,
+      type = "scatter",
+      mode = "lines",
+      hovertemplate = paste0(
+        "k=%{x}<br>",
+        "velocidad=%{y:.6g}<extra></extra>"
+      )
+    ) |>
+      layout(
+        xaxis = list(title = "Iteración"),
+        yaxis = list(title = "Velocidad paramétrica de capa"),
+        title = "Movimiento interno por capa"
+      )
+  })
+
+  output$capability_table <- renderDT({
+    if (!has_dynamic_trace()) {
+      return(
+        datatable(
+          data.frame(
+            capability = "non_dynamic_evidence",
+            trace_available = FALSE,
+            message = dynamic_trace_required_message(),
+            stringsAsFactors = FALSE
+          ),
+          rownames = FALSE,
+          options = list(dom = "t")
+        )
+      )
+    }
+
+    datatable(
+      te_capabilities(trace()),
+      rownames = FALSE,
+      options = list(
+        dom = "t",
+        scrollX = TRUE
+      )
+    )
+  })
+
+  output$has_parameter_map <- reactive({
+    tr <- trace()
+    inherits(tr, "te_trace") &&
+      inherits(tr$parameter_map, "te_parameter_map")
+  })
+  outputOptions(
+    output,
+    "has_parameter_map",
+    suspendWhenHidden = FALSE
+  )
+
+  output$mlp_capability_note <- renderUI({
+    if (!has_dynamic_trace()) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            class = "te-muted",
+            dynamic_trace_required_message()
+          )
+        )
+      )
+    }
+
+    cap <- te_capabilities(trace())
+    if (isTRUE(cap$parameter_history)) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            class = "te-ok",
+            "La fuente conserva historia paramétrica exacta: puede inspeccionarse por capa y parámetro."
+          )
+        )
+      )
+    }
+
+    if (isTRUE(cap$parameter_norm)) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            "La fuente conserva dinámica global del MLP, pero no historia completa de cada parámetro."
+          ),
+          p(
+            class = "te-muted",
+            "TraceExplorer no reconstruye una velocidad o pesos individuales que la fuente no registró."
+          )
+        )
+      )
+    }
+
+    div(
+      class = "te-card",
+      p(
+        "La fuente satisface el contrato mínimo de trayectoria, pero no expone dinámica paramétrica detallada."
+      )
+    )
+  })
+
+  observe({
+    tr <- trace()
+
+    if (!inherits(tr, "te_trace")) {
+      return()
+    }
+
+    if (!inherits(tr$parameter_map, "te_parameter_map")) {
+      return()
+    }
+    pm <- te_parameter_map_data(tr$parameter_map)
+    layers <- unique(pm$layer)
+    updateSelectInput(
+      session,
+      "parameter_layer",
+      choices = c(
+        "Todas" = "__all__",
+        stats::setNames(layers, layers)
+      )
+    )
+  })
+
+  output$parameter_plot <- renderPlotly({
+    tr <- trace()
+    req(inherits(tr, "te_trace"))
+    req(inherits(tr$parameter_map, "te_parameter_map"))
+
+    layer <- input$parameter_layer
+    if (is.null(layer) || identical(layer, "__all__")) {
+      layer <- NULL
+    }
+
+    d <- te_parameter_trajectories(
+      tr,
+      layer = layer,
+      max_parameters = 12L
+    )
+
+    plot_ly(
+      d,
+      x = ~iter,
+      y = ~value,
+      split = ~parameter_id,
+      type = "scatter",
+      mode = "lines",
+      hovertemplate = paste0(
+        "k=%{x}<br>",
+        "valor=%{y:.6g}<extra></extra>"
+      )
+    ) |>
+      layout(
+        xaxis = list(title = "Iteración"),
+        yaxis = list(title = "Valor del parámetro"),
+        title = "Historia paramétrica observada"
+      )
+  })
+
+  output$fs3d_status <- renderUI({
+    if (
+      input$source_mode %in% c("article_rds", "article_project") &&
+      !has_dynamic_trace() &&
+      is.null(fs_analysis())
+    ) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            class = "te-muted",
+            dynamic_trace_required_message()
+          )
+        )
+      )
+    }
+
+    if (!isTRUE(input$run_fs)) {
+      return(
+        div(
+          class = "te-card",
+          p(
+            "Active FormalSpec para construir el espacio 3D de características de ventana."
+          )
+        )
+      )
+    }
+
+    div(
+      class = "te-card",
+      p(
+        "Cada punto representa una ventana FormalSpec, no una iteración aislada."
+      ),
+      p(
+        class = "te-muted",
+        "Ejes: pendiente local de pérdida, cambio absoluto medio y tasa de oscilación."
+      )
+    )
+  })
+
+  output$webgl_fs_status <- renderUI({
+    policy <- te_webgl_display_policy(
+      input$webgl_supported
+    )
+
+    div(
+      class = "te-card",
+      p(
+        class = if (policy$state == "webgl") "te-ok" else "te-muted",
+        policy$message
+      )
+    )
+  })
+
+  output$regime3d_fallback <- renderPlotly({
+    req(input$run_fs)
+    a <- fs_analysis()
+    vs <- visual_spec()
+
+    validate(
+      need(
+        inherits(a, "te_formalspec_analysis"),
+        "No existe análisis FormalSpec dinámico para esta fuente."
+      )
+    )
+
+    sp <- te_regime_feature_space(a)
+
+    plot_ly(
+      sp,
+      x = ~x,
+      y = ~y,
+      color = ~candidate_regime,
+      key = ~window_id,
+      customdata = ~end_iter,
+      type = "scatter",
+      mode = "markers",
+      marker = list(
+        size = vs$highlight_size,
+        opacity = 0.95,
+        line = list(width = 1.4)
+      ),
+      text = ~paste0(
+        "ventana=", window_id,
+        "<br>fin=", end_iter,
+        "<br>Psi=", candidate_regime,
+        "<br>oscilación=", signif(z, 6)
+      ),
+      hovertemplate = paste0(
+        "%{text}<br>",
+        "pendiente=%{x:.5g}<br>",
+        "cambio medio=%{y:.5g}<extra></extra>"
+      )
+    ) |>
+      layout(
+        xaxis = te_plotly_axis_spec(sp$x_label[[1L]], vs),
+        yaxis = te_plotly_axis_spec(sp$y_label[[1L]], vs),
+        title = list(
+          text = paste0(
+            "FormalSpec — proyección 2D; ",
+            sp$z_label[[1L]],
+            " en tooltip"
+          ),
+          font = list(size = vs$title_size)
+        ),
+        legend = list(
+          orientation = "h",
+          x = 0,
+          y = 1.16,
+          font = list(size = vs$legend_size),
+          title = list(text = "Psi candidato")
+        ),
+        margin = list(
+          l = vs$plot_margin,
+          r = 30,
+          b = vs$plot_margin,
+          t = 110
+        )
+      ) |>
+      config(displaylogo = FALSE)
+  })
+
+  output$regime3d <- renderPlotly({
+    req(input$run_fs)
+    a <- fs_analysis()
+    vs <- visual_spec()
+
+    validate(
+      need(
+        inherits(a, "te_formalspec_analysis"),
+        "No existe análisis FormalSpec dinámico para esta fuente."
+      )
+    )
+
+    sp <- te_regime_feature_space(a)
+
+    plot_ly(
+      sp,
+      x = ~x,
+      y = ~y,
+      z = ~z,
+      color = ~candidate_regime,
+      key = ~window_id,
+      customdata = ~end_iter,
+      type = "scatter3d",
+      mode = "markers",
+      marker = list(
+        size = vs$highlight_size,
+        opacity = 0.95,
+        line = list(width = 1.3)
+      ),
+      text = ~paste0(
+        "ventana=", window_id,
+        "<br>fin=", end_iter,
+        "<br>Psi=", candidate_regime
+      ),
+      hovertemplate = paste0(
+        "%{text}<br>",
+        "pendiente=%{x:.5g}<br>",
+        "cambio medio=%{y:.5g}<br>",
+        "oscilación=%{z:.5g}<extra></extra>"
+      )
+    ) |>
+      layout(
+        scene = list(
+          xaxis = te_plotly_axis_spec(sp$x_label[[1L]], vs),
+          yaxis = te_plotly_axis_spec(sp$y_label[[1L]], vs),
+          zaxis = te_plotly_axis_spec(sp$z_label[[1L]], vs)
+        ),
+        title = list(
+          text = "Espacio FormalSpec que alimenta Psi",
+          font = list(size = vs$title_size)
+        ),
+        legend = list(
+          font = list(size = vs$legend_size),
+          title = list(text = "Psi candidato")
+        ),
+        margin = list(l = 20, r = 20, b = 20, t = 90)
+      ) |>
+      config(displaylogo = FALSE)
+  })
+
+  output$protocol_status <- renderUI({
+    pf <- te_formalspec_preflight(error = FALSE)
+    ok <- all(pf$status == "PASS")
+
+    div(
+      class = "te-card",
+      p(
+        class = if (ok) "te-ok" else "te-fail",
+        if (ok) {
+          "FormalSpec baseline compatible."
+        } else {
+          "FormalSpec baseline no compatible."
+        }
+      ),
+      p(
+        class = "te-muted",
+        "TraceExplorer v0.2.0 utiliza el protocolo congelado del primer artículo sin calibración sobre la traza cargada."
+      )
+    )
+  })
+
+  output$protocol_table <- renderDT({
+    pf <- te_formalspec_preflight(error = FALSE)
+    datatable(
+      pf,
+      rownames = FALSE,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE
+      )
+    )
+  })
+}
+
+shinyApp(ui, server)

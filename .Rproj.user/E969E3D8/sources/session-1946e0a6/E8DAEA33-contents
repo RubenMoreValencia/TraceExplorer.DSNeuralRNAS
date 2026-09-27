@@ -1,0 +1,3 @@
+Release script regex audit
+==========================
+No literal \\s regex sequences remain.

@@ -1,0 +1,372 @@
+source("tools/release/lib_release.R")
+
+root <- .te_release_assert_root()
+
+build_dir <- file.path(root, "release", "build")
+check_dir <- file.path(root, "release", "check")
+
+dir.create(
+  build_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+# RC1.4: every check begins from a clean, controlled directory.
+if (dir.exists(check_dir)) {
+  unlink(
+    check_dir,
+    recursive = TRUE,
+    force = TRUE
+  )
+}
+
+dir.create(
+  check_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+rbin <- .te_release_r_bin()
+
+blog <- file.path(
+  .te_release_dir(root),
+  "build.log"
+)
+
+clog <- file.path(
+  .te_release_dir(root),
+  "check.log"
+)
+
+failure_excerpt <- file.path(
+  .te_release_dir(root),
+  "check_failure_excerpt.txt"
+)
+
+if (file.exists(failure_excerpt)) {
+  unlink(failure_excerpt)
+}
+
+old <- getwd()
+on.exit(
+  setwd(old),
+  add = TRUE
+)
+
+# ------------------------------------------------------------
+# Build
+# ------------------------------------------------------------
+setwd(dirname(root))
+
+status <- .te_release_system2(
+  rbin,
+  c(
+    "CMD",
+    "build",
+    shQuote(root)
+  ),
+  blog
+)
+
+if (status != 0L) {
+  .te_release_write(
+    "03_build",
+    "FAIL",
+    paste(
+      "Exit status",
+      status
+    ),
+    root
+  )
+
+  stop(
+    "R CMD build failed. See release/results/build.log",
+    call. = FALSE
+  )
+}
+
+tars <- list.files(
+  dirname(root),
+  pattern = "^TraceExplorer\\.DSNeuralRNAS_.*\\.tar\\.gz$",
+  full.names = TRUE
+)
+
+if (!length(tars)) {
+  stop(
+    "Build succeeded but tarball was not found.",
+    call. = FALSE
+  )
+}
+
+tarball <- tars[
+  which.max(
+    file.info(tars)$mtime
+  )
+]
+
+tarball <- normalizePath(
+  tarball,
+  winslash = "/",
+  mustWork = TRUE
+)
+
+build_copy <- file.path(
+  build_dir,
+  basename(tarball)
+)
+
+file.copy(
+  tarball,
+  build_copy,
+  overwrite = TRUE
+)
+
+.te_release_write(
+  "03_build",
+  "PASS",
+  basename(tarball),
+  root
+)
+
+# ------------------------------------------------------------
+# Check
+#
+# Copy the tarball into release/check and invoke R CMD check on
+# the local basename. This avoids any ambiguity involving an
+# absolute path, quoting, or the parent working directory.
+# ------------------------------------------------------------
+check_tarball <- file.path(
+  check_dir,
+  basename(tarball)
+)
+
+if (!file.copy(
+  tarball,
+  check_tarball,
+  overwrite = TRUE
+)) {
+  stop(
+    "Could not copy the built tarball into release/check.",
+    call. = FALSE
+  )
+}
+
+setwd(check_dir)
+
+status <- .te_release_system2(
+  rbin,
+  c(
+    "CMD",
+    "check",
+    "--as-cran",
+    shQuote(
+      basename(check_tarball)
+    )
+  ),
+  clog,
+  env = c(
+    "_R_CHECK_CRAN_INCOMING_REMOTE_=false"
+  )
+)
+
+check_dirs <- list.dirs(
+  check_dir,
+  recursive = FALSE,
+  full.names = TRUE
+)
+
+check_dirs <- check_dirs[
+  grepl(
+    "\\.Rcheck$",
+    check_dirs
+  )
+]
+
+# ------------------------------------------------------------
+# Early-abort diagnostics
+# ------------------------------------------------------------
+if (!length(check_dirs)) {
+  log_lines <- if (file.exists(clog)) {
+    readLines(
+      clog,
+      warn = FALSE
+    )
+  } else {
+    character()
+  }
+
+  excerpt <- tail(
+    log_lines,
+    80L
+  )
+
+  writeLines(
+    c(
+      paste0(
+        "R CMD check exit status: ",
+        status
+      ),
+      "",
+      "No *.Rcheck directory was created.",
+      "",
+      "Last check.log lines:",
+      excerpt
+    ),
+    failure_excerpt,
+    useBytes = TRUE
+  )
+
+  detail <- paste0(
+    "exit=",
+    status,
+    "; no .Rcheck directory; see ",
+    "release/results/check_failure_excerpt.txt"
+  )
+
+  .te_release_write(
+    "04_check",
+    "FAIL",
+    detail,
+    root
+  )
+
+  cat(
+    "\nR CMD check aborted before creating an .Rcheck directory.\n"
+  )
+
+  if (length(excerpt)) {
+    cat(
+      paste(
+        excerpt,
+        collapse = "\n"
+      ),
+      "\n"
+    )
+  }
+
+  stop(
+    paste0(
+      "R CMD check aborted before creating .Rcheck. ",
+      "See release/results/check.log and ",
+      "release/results/check_failure_excerpt.txt"
+    ),
+    call. = FALSE
+  )
+}
+
+# Prefer newest .Rcheck if more than one somehow exists.
+check_dir_info <- file.info(check_dirs)
+selected <- check_dirs[
+  which.max(
+    check_dir_info$mtime
+  )
+]
+
+check00 <- file.path(
+  selected,
+  "00check.log"
+)
+
+summary_text <- if (file.exists(check00)) {
+  paste(
+    readLines(
+      check00,
+      warn = FALSE
+    ),
+    collapse = "\n"
+  )
+} else {
+  ""
+}
+
+has_error <- grepl(
+  "[1-9][0-9]* ERROR",
+  summary_text
+)
+
+has_warning <- grepl(
+  "[1-9][0-9]* WARNING",
+  summary_text
+)
+
+has_note <- grepl(
+  "[1-9][0-9]* NOTE",
+  summary_text
+)
+
+if (
+  status != 0L ||
+  has_error ||
+  has_warning ||
+  has_note
+) {
+  excerpt <- tail(
+    readLines(
+      check00,
+      warn = FALSE
+    ),
+    100L
+  )
+
+  writeLines(
+    c(
+      paste0(
+        "R CMD check exit status: ",
+        status
+      ),
+      "",
+      paste0(
+        "ERROR detected: ",
+        has_error
+      ),
+      paste0(
+        "WARNING detected: ",
+        has_warning
+      ),
+      paste0(
+        "NOTE detected: ",
+        has_note
+      ),
+      "",
+      "Last 00check.log lines:",
+      excerpt
+    ),
+    failure_excerpt,
+    useBytes = TRUE
+  )
+
+  .te_release_write(
+    "04_check",
+    "FAIL",
+    paste0(
+      "exit=",
+      status,
+      "; error=",
+      has_error,
+      "; warning=",
+      has_warning,
+      "; note=",
+      has_note
+    ),
+    root
+  )
+
+  stop(
+    paste0(
+      "R CMD check release gate failed. ",
+      "See release/results/check.log, ",
+      "release/results/check_failure_excerpt.txt, and ",
+      "release/check/*.Rcheck/00check.log"
+    ),
+    call. = FALSE
+  )
+}
+
+.te_release_write(
+  "04_check",
+  "PASS",
+  "0 errors | 0 warnings | 0 notes",
+  root
+)
+
+cat("R CMD CHECK PASS\n")

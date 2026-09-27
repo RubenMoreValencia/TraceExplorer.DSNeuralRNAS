@@ -1,0 +1,12 @@
+field,value,meaning
+freeze_target,TE-1.0.0-DSNEURAL-FORMALSPEC,Target freeze identifier
+rc_id,TE-1.0.0-RC1,Release-candidate identifier
+baseline_version,0.10.2,Validated functional/visual baseline
+target_version,1.0.0,Version written only after all RC gates pass
+core_change_policy,FROZEN,No functional changes after RC begins
+formal_spec_version,1.0.0,Frozen FormalSpec semantic version
+formal_spec_freeze,DSFS-1.0.0-FIRST-ARTICLE,Required article protocol freeze
+runtime_language,R/RStudio/Shiny,Exclusive executable implementation environment
+test_gate,FAIL 0 | WARN 0 | SKIP 0,Required testthat result
+check_gate,0 errors | 0 warnings | 0 notes,Target R CMD check result
+webgl_policy,fallback_2d,3D optional; 2D fallback required

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head><title>R: Exploracion, Visualizacion y Trazabilidad De Trayectorias
+DSNeuralRNAS</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<link rel="stylesheet" type="text/css" href="R.css">
+</head><body><div class="container">
+<h1> Exploracion, Visualizacion y Trazabilidad De Trayectorias
+DSNeuralRNAS
+<img class="toplogo" src="../../../doc/html/Rlogo.svg" alt="[R logo]">
+</h1>
+<hr>
+<div style="text-align: center;">
+<a href="../../../doc/html/packages.html"><img class="arrow" src="../../../doc/html/left.jpg" alt="[Up]"></a>
+<a href="../../../doc/html/index.html"><img class="arrow" src="../../../doc/html/up.jpg" alt="[Top]"></a>
+</div><h2>Documentation for package &lsquo;TraceExplorer.DSNeuralRNAS&rsquo; version 1.0.0</h2>
+
+<ul><li><a href="../DESCRIPTION" type="text/plain; charset=utf-8">DESCRIPTION file</a></li>
+</ul>
+
+<h2>Help Pages</h2>
+
+
+<table style="width: 100%;">
+<tr><td style="width: 25%;"><a href="run_trace_explorer.html">run_trace_explorer</a></td>
+<td>Launch TraceExplorer Shiny application</td></tr>
+<tr><td style="width: 25%;"><a href="te_analytical_reference.html">te_analytical_reference</a></td>
+<td>Construct an analytical reference</td></tr>
+<tr><td style="width: 25%;"><a href="te_analytical_reference_data.html">te_analytical_reference_data</a></td>
+<td>Tabular representation of an analytical reference</td></tr>
+<tr><td style="width: 25%;"><a href="te_architecture.html">te_architecture</a></td>
+<td>Define a generic neural architecture contract</td></tr>
+<tr><td style="width: 25%;"><a href="te_architecture_data.html">te_architecture_data</a></td>
+<td>Extract architecture table</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_analytical_reference.html">te_article_analytical_reference</a></td>
+<td>First-article analytical reference for an imported case</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_cases_multirun.html">te_article_cases_multirun</a></td>
+<td>Convert selected dynamic article cases into a multi-run collection</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set.html">te_article_case_set</a></td>
+<td>Create a scientific comparison set from article cases</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_boundaries.html">te_article_case_set_boundaries</a></td>
+<td>Existing boundary events for article cases</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_boundary_overlay.html">te_article_case_set_boundary_overlay</a></td>
+<td>Boundary overlay for article comparison loss views</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_formalspec_summary.html">te_article_case_set_formalspec_summary</a></td>
+<td>Existing FormalSpec summaries for article cases</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_index.html">te_article_case_set_index</a></td>
+<td>Descriptive index for article cases</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_loss_summary.html">te_article_case_set_loss_summary</a></td>
+<td>Descriptive scale summary for article comparison cases</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_loss_view.html">te_article_case_set_loss_view</a></td>
+<td>Transform article comparison loss for visualization</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_regime_occupancy.html">te_article_case_set_regime_occupancy</a></td>
+<td>Descriptive semantic occupancy by case</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_semantic_lanes.html">te_article_case_set_semantic_lanes</a></td>
+<td>Prepare semantic lane data for article comparison plots</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_semantic_timeline.html">te_article_case_set_semantic_timeline</a></td>
+<td>Existing semantic timeline across article cases</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_trace_data.html">te_article_case_set_trace_data</a></td>
+<td>Combined trace data for dynamic article cases</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_transition_signature.html">te_article_case_set_transition_signature</a></td>
+<td>Transition signature for each article case</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_set_transition_timeline.html">te_article_case_set_transition_timeline</a></td>
+<td>Existing Phi transition timeline across article cases</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_case_summary.html">te_article_case_summary</a></td>
+<td>Summarize an imported article case</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_catalog.html">te_article_catalog</a></td>
+<td>Build a navigable article-project catalog</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_catalog_summary.html">te_article_catalog_summary</a></td>
+<td>Summarize article evidence by experiment and role</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_classify_object.html">te_article_classify_object</a></td>
+<td>Classify a first-article R object</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_display_state.html">te_article_display_state</a></td>
+<td>Determine the display state of an imported article case</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_experiment_registry.html">te_article_experiment_registry</a></td>
+<td>Registry of first-article experiment purposes</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_filter.html">te_article_filter</a></td>
+<td>Filter an article-project catalog</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_import_object.html">te_article_import_object</a></td>
+<td>Import an in-memory first-article object</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_inventory.html">te_article_inventory</a></td>
+<td>Inventory RDS evidence in a first-article project directory</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_load_case_set.html">te_article_load_case_set</a></td>
+<td>Load multiple article cases from exact catalog rows</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_load_catalog_case.html">te_article_load_catalog_case</a></td>
+<td>Load one case from a catalog</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_load_rds.html">te_article_load_rds</a></td>
+<td>Load a first-article RDS object</td></tr>
+<tr><td style="width: 25%;"><a href="te_article_project_registry.html">te_article_project_registry</a></td>
+<td>Read the article experiment registry from a project directory</td></tr>
+<tr><td style="width: 25%;"><a href="te_bridge.html">te_bridge</a></td>
+<td>Convert an object through a registered bridge</td></tr>
+<tr><td style="width: 25%;"><a href="te_bridge_ml_variable.html">te_bridge_ml_variable</a></td>
+<td>Bridge a real ML.DSNeuralRNAS learned variable</td></tr>
+<tr><td style="width: 25%;"><a href="te_bridge_registry.html">te_bridge_registry</a></td>
+<td>Inspect registered bridges</td></tr>
+<tr><td style="width: 25%;"><a href="te_bridge_rnas_mlp.html">te_bridge_rnas_mlp</a></td>
+<td>Bridge a real DSNeuralRNAS MLP training object</td></tr>
+<tr><td style="width: 25%;"><a href="te_capabilities.html">te_capabilities</a></td>
+<td>Inspect TraceExplorer observability capabilities</td></tr>
+<tr><td style="width: 25%;"><a href="te_contract.html">te_contract</a></td>
+<td>TraceExplorer observable contract</td></tr>
+<tr><td style="width: 25%;"><a href="te_control_space.html">te_control_space</a></td>
+<td>Control-dynamics 3D space</td></tr>
+<tr><td style="width: 25%;"><a href="te_demo_mlp_trace.html">te_demo_mlp_trace</a></td>
+<td>Didactic MLP-like learning trace</td></tr>
+<tr><td style="width: 25%;"><a href="te_demo_multilayer_trace.html">te_demo_multilayer_trace</a></td>
+<td>Construct a deterministic arbitrary-depth MLP trace for architecture teaching</td></tr>
+<tr><td style="width: 25%;"><a href="te_detect_source.html">te_detect_source</a></td>
+<td>Detect a source object</td></tr>
+<tr><td style="width: 25%;"><a href="te_evidence_analytical_contrast.html">te_evidence_analytical_contrast</a></td>
+<td>Compare a trace with an analytical reference when supported</td></tr>
+<tr><td style="width: 25%;"><a href="te_evidence_extension_points.html">te_evidence_extension_points</a></td>
+<td>Extension points for future ecosystems</td></tr>
+<tr><td style="width: 25%;"><a href="te_evidence_level_contract.html">te_evidence_level_contract</a></td>
+<td>Five-level DSNeuralRNAS evidence contract</td></tr>
+<tr><td style="width: 25%;"><a href="te_evidence_stack.html">te_evidence_stack</a></td>
+<td>Build the five-level evidence stack</td></tr>
+<tr><td style="width: 25%;"><a href="te_evidence_stack_decisions.html">te_evidence_stack_decisions</a></td>
+<td>Implementation decisions derived from evidence availability</td></tr>
+<tr><td style="width: 25%;"><a href="te_evidence_stack_levels.html">te_evidence_stack_levels</a></td>
+<td>Evidence-stack level table</td></tr>
+<tr><td style="width: 25%;"><a href="te_example_ml_variable.html">te_example_ml_variable</a></td>
+<td>Generate a small real ML.DSNeuralRNAS MLP variable example</td></tr>
+<tr><td style="width: 25%;"><a href="te_example_multirun_ml.html">te_example_multirun_ml</a></td>
+<td>Build a real ML.DSNeuralRNAS multi-run example</td></tr>
+<tr><td style="width: 25%;"><a href="te_example_rnas_mlp.html">te_example_rnas_mlp</a></td>
+<td>Generate a small real DSNeuralRNAS MLP example</td></tr>
+<tr><td style="width: 25%;"><a href="te_export_article_comparison_bundle.html">te_export_article_comparison_bundle</a></td>
+<td>Export an article-comparison evidence bundle</td></tr>
+<tr><td style="width: 25%;"><a href="te_export_evidence_bundle.html">te_export_evidence_bundle</a></td>
+<td>Export an auditable TraceExplorer evidence directory</td></tr>
+<tr><td style="width: 25%;"><a href="te_formalspec_preflight.html">te_formalspec_preflight</a></td>
+<td>Preflight for the frozen FormalSpec article baseline</td></tr>
+<tr><td style="width: 25%;"><a href="te_formalspec_protocol.html">te_formalspec_protocol</a></td>
+<td>Frozen FormalSpec protocol used by TraceExplorer</td></tr>
+<tr><td style="width: 25%;"><a href="te_formalspec_summary.html">te_formalspec_summary</a></td>
+<td>Summarize a complete FormalSpec analysis</td></tr>
+<tr><td style="width: 25%;"><a href="te_layer_dynamics.html">te_layer_dynamics</a></td>
+<td>Aggregate parameter dynamics at layer level</td></tr>
+<tr><td style="width: 25%;"><a href="te_learning_space.html">te_learning_space</a></td>
+<td>Learning-dynamics 3D space</td></tr>
+<tr><td style="width: 25%;"><a href="te_mlp_architecture.html">te_mlp_architecture</a></td>
+<td>Architecture contract for a dense multilayer perceptron</td></tr>
+<tr><td style="width: 25%;"><a href="te_multirun.html">te_multirun</a></td>
+<td>Create a multi-run TraceExplorer collection</td></tr>
+<tr><td style="width: 25%;"><a href="te_multirun_architectures.html">te_multirun_architectures</a></td>
+<td>Architecture comparison table across runs</td></tr>
+<tr><td style="width: 25%;"><a href="te_multirun_formalspec.html">te_multirun_formalspec</a></td>
+<td>Apply the frozen FormalSpec pipeline independently to each run</td></tr>
+<tr><td style="width: 25%;"><a href="te_multirun_formalspec_summary.html">te_multirun_formalspec_summary</a></td>
+<td>FormalSpec summary across runs</td></tr>
+<tr><td style="width: 25%;"><a href="te_multirun_index.html">te_multirun_index</a></td>
+<td>Descriptive index of a multi-run collection</td></tr>
+<tr><td style="width: 25%;"><a href="te_multirun_semantic_data.html">te_multirun_semantic_data</a></td>
+<td>FormalSpec semantic data across runs</td></tr>
+<tr><td style="width: 25%;"><a href="te_multirun_trace_data.html">te_multirun_trace_data</a></td>
+<td>Long canonical data for multiple runs</td></tr>
+<tr><td style="width: 25%;"><a href="te_normalized_time.html">te_normalized_time</a></td>
+<td>Normalized learning time</td></tr>
+<tr><td style="width: 25%;"><a href="te_observed_data_profile.html">te_observed_data_profile</a></td>
+<td>Conservative observed-data profile</td></tr>
+<tr><td style="width: 25%;"><a href="te_parameter_block_dynamics.html">te_parameter_block_dynamics</a></td>
+<td>Summarize parameter history by layer and parameter type</td></tr>
+<tr><td style="width: 25%;"><a href="te_parameter_map.html">te_parameter_map</a></td>
+<td>Create a long-form parameter map</td></tr>
+<tr><td style="width: 25%;"><a href="te_parameter_map_data.html">te_parameter_map_data</a></td>
+<td>Extract parameter-map data</td></tr>
+<tr><td style="width: 25%;"><a href="te_parameter_map_ml_variable.html">te_parameter_map_ml_variable</a></td>
+<td>Build an exact parameter map from ML.DSNeuralRNAS theta history</td></tr>
+<tr><td style="width: 25%;"><a href="te_parameter_space.html">te_parameter_space</a></td>
+<td>Parameter-dynamics 3D space</td></tr>
+<tr><td style="width: 25%;"><a href="te_parameter_trajectories.html">te_parameter_trajectories</a></td>
+<td>Parameter trajectories from a trace parameter map</td></tr>
+<tr><td style="width: 25%;"><a href="te_plotly_axis_spec.html">te_plotly_axis_spec</a></td>
+<td>Plotly axis specification</td></tr>
+<tr><td style="width: 25%;"><a href="te_regime_feature_space.html">te_regime_feature_space</a></td>
+<td>FormalSpec regime-feature 3D space</td></tr>
+<tr><td style="width: 25%;"><a href="te_register_bridge.html">te_register_bridge</a></td>
+<td>Register a TraceExplorer bridge</td></tr>
+<tr><td style="width: 25%;"><a href="te_register_default_bridges.html">te_register_default_bridges</a></td>
+<td>Register default ecosystem bridges</td></tr>
+<tr><td style="width: 25%;"><a href="te_resolve_space.html">te_resolve_space</a></td>
+<td>Resolve a valid 3D space for a trace</td></tr>
+<tr><td style="width: 25%;"><a href="te_run_formalspec.html">te_run_formalspec</a></td>
+<td>Run Trace -&gt; Observables -&gt; Windows -&gt; Psi -&gt; Gamma -&gt; Phi</td></tr>
+<tr><td style="width: 25%;"><a href="te_space_availability.html">te_space_availability</a></td>
+<td>Report 3D-space availability for a trace</td></tr>
+<tr><td style="width: 25%;"><a href="te_to_formalspec.html">te_to_formalspec</a></td>
+<td>Convert a TraceExplorer trace to a frozen FormalSpec trace</td></tr>
+<tr><td style="width: 25%;"><a href="te_trace.html">te_trace</a></td>
+<td>Create a canonical TraceExplorer trace</td></tr>
+<tr><td style="width: 25%;"><a href="te_traceability_index.html">te_traceability_index</a></td>
+<td>Build a traceability index</td></tr>
+<tr><td style="width: 25%;"><a href="te_trace_data.html">te_trace_data</a></td>
+<td>Extract trace data</td></tr>
+<tr><td style="width: 25%;"><a href="te_validate_analytical_reference.html">te_validate_analytical_reference</a></td>
+<td>Validate an analytical reference</td></tr>
+<tr><td style="width: 25%;"><a href="te_validate_architecture.html">te_validate_architecture</a></td>
+<td>Validate architecture contract</td></tr>
+<tr><td style="width: 25%;"><a href="te_validate_article_case_set.html">te_validate_article_case_set</a></td>
+<td>Validate an article comparison set</td></tr>
+<tr><td style="width: 25%;"><a href="te_validate_evidence_stack.html">te_validate_evidence_stack</a></td>
+<td>Validate an evidence stack</td></tr>
+<tr><td style="width: 25%;"><a href="te_validate_formalspec_analysis.html">te_validate_formalspec_analysis</a></td>
+<td>Validate a complete FormalSpec analysis</td></tr>
+<tr><td style="width: 25%;"><a href="te_validate_multirun.html">te_validate_multirun</a></td>
+<td>Validate a multi-run collection</td></tr>
+<tr><td style="width: 25%;"><a href="te_validate_multirun_formalspec.html">te_validate_multirun_formalspec</a></td>
+<td>Validate multi-run FormalSpec results</td></tr>
+<tr><td style="width: 25%;"><a href="te_validate_trace.html">te_validate_trace</a></td>
+<td>Validate a canonical trace data frame</td></tr>
+<tr><td style="width: 25%;"><a href="te_verify_parameter_decomposition.html">te_verify_parameter_decomposition</a></td>
+<td>Verify global norm decomposition from parameter map</td></tr>
+<tr><td style="width: 25%;"><a href="te_visual_spec.html">te_visual_spec</a></td>
+<td>Visual specification for TraceExplorer plots</td></tr>
+<tr><td style="width: 25%;"><a href="te_webgl_display_policy.html">te_webgl_display_policy</a></td>
+<td>Resolve browser visualization policy</td></tr>
+</table>
+</div></body></html>

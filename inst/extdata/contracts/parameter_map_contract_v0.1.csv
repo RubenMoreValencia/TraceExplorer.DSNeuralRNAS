@@ -1,0 +1,6 @@
+field,required,description
+iter,TRUE,Iteración
+layer,TRUE,Capa o bloque paramétrico
+parameter_type,TRUE,weight o bias u otro tipo declarado
+parameter_id,TRUE,Identificador estable dentro de la capa
+value,TRUE,Valor del parámetro en la iteración

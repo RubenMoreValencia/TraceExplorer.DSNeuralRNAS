@@ -1,0 +1,19 @@
+TraceExplorer.DSNeuralRNAS 1.0.0 freeze scope
+
+Frozen after RC1 begins:
+- R/*.R
+- inst/shiny/app/app.R
+- inst/extdata/contracts/*
+- NAMESPACE
+- formal integration semantics
+- bridge contracts
+- Evidence Stack contracts
+- visualization semantics (data mappings and labels)
+
+Allowed during RC only:
+- regenerated man/*.Rd from existing roxygen comments
+- release reports/manifests/checksums
+- maintainer email metadata supplied explicitly by the user
+- version promotion 0.10.2 -> 1.0.0 after all gates PASS
+- corrections required solely to satisfy release gates; any such correction invalidates
+  the previous RC and requires a new RC identifier.

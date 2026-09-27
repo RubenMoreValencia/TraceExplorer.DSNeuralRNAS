@@ -1,0 +1,22 @@
+Package: TraceExplorer.DSNeuralRNAS
+Type: Package
+Title: Exploracion, Visualizacion y Trazabilidad De Trayectorias
+        DSNeuralRNAS
+Version: 1.0.0
+Authors@R: person("Ruben", "More Valencia", email = "rmorev@unp.edu.pe", role = c("aut", "cre"))
+Description: Capa independiente de exploracion y visualizacion para trayectorias
+    de aprendizaje DSNeuralRNAS. Define contratos observables, bridges auditables,
+    vistas didacticas y de investigacion, y una aplicacion Shiny 2D/3D. No redefine
+    la semantica de DSNeuralRNAS.FormalSpec.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports: shiny, plotly, DT
+Suggests: DSNeuralRNAS.FormalSpec, DSNeuralRNAS, ML.DSNeuralRNAS,
+        testthat (>= 3.0.0), roxygen2
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0
+NeedsCompilation: no
+Packaged: 2026-09-27 14:46:14 UTC; rubenmorevalencia
+Author: Ruben More Valencia [aut, cre]
+Maintainer: Ruben More Valencia <rmorev@unp.edu.pe>
+Built: R 4.6.0; ; 2026-09-27 14:46:22 UTC; unix

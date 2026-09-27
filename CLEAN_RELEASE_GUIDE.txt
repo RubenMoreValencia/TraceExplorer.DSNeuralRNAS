@@ -1,0 +1,55 @@
+TRACEEXPLORER.DSNEURALRNAS — CLEAN RELEASE CANDIDATE
+===================================================
+
+Purpose
+-------
+This project intentionally removes all historical RC/release directories and
+keeps only:
+
+- R/
+- tests/
+- inst/extdata/
+- inst/shiny/
+- DESCRIPTION
+- NAMESPACE
+- LICENSE
+- README.md
+- tools/FINAL_RELEASE.R
+
+Final release workflow
+----------------------
+In RStudio:
+
+pkg_dir <- "/Users/rubenmorevalencia/Desktop/SYJ/TraceExplorer.DSNeuralRNAS_CLEAN_RC"
+setwd(pkg_dir)
+source("tools/FINAL_RELEASE.R")
+
+The script performs:
+
+1. preflight;
+2. Rd generation;
+3. full testthat suite;
+4. RC 0.10.2 build;
+5. R CMD check --as-cran --no-manual;
+6. clean install + smoke;
+7. metadata-only promotion to 1.0.0;
+8. final build/check/install/smoke;
+9. freeze manifest and final tarball.
+
+On success the final artifacts are in:
+
+_release/final/
+
+Expected terminal message:
+
+TE-1.0.0-DSNEURAL-FORMALSPEC READY
+
+Why --no-manual?
+----------------
+The previous full check was blocked by local LaTeX/HTML Tidy tooling while the
+package tests passed. The release gate still uses --as-cran, but excludes PDF
+manual generation so package correctness is not made dependent on the local TeX
+installation.
+
+A future CRAN submission can run the full manual check after installing a
+complete TeX/HTML Tidy environment.

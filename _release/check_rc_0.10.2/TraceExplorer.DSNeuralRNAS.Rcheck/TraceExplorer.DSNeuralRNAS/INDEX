@@ -1,0 +1,183 @@
+run_trace_explorer      Launch TraceExplorer Shiny application
+te_analytical_reference
+                        Construct an analytical reference
+te_analytical_reference_data
+                        Tabular representation of an analytical
+                        reference
+te_architecture         Define a generic neural architecture contract
+te_architecture_data    Extract architecture table
+te_article_analytical_reference
+                        First-article analytical reference for an
+                        imported case
+te_article_case_set     Create a scientific comparison set from article
+                        cases
+te_article_case_set_boundaries
+                        Existing boundary events for article cases
+te_article_case_set_boundary_overlay
+                        Boundary overlay for article comparison loss
+                        views
+te_article_case_set_formalspec_summary
+                        Existing FormalSpec summaries for article cases
+te_article_case_set_index
+                        Descriptive index for article cases
+te_article_case_set_loss_summary
+                        Descriptive scale summary for article
+                        comparison cases
+te_article_case_set_loss_view
+                        Transform article comparison loss for
+                        visualization
+te_article_case_set_regime_occupancy
+                        Descriptive semantic occupancy by case
+te_article_case_set_semantic_lanes
+                        Prepare semantic lane data for article
+                        comparison plots
+te_article_case_set_semantic_timeline
+                        Existing semantic timeline across article cases
+te_article_case_set_trace_data
+                        Combined trace data for dynamic article cases
+te_article_case_set_transition_signature
+                        Transition signature for each article case
+te_article_case_set_transition_timeline
+                        Existing Phi transition timeline across article
+                        cases
+te_article_case_summary
+                        Summarize an imported article case
+te_article_cases_multirun
+                        Convert selected dynamic article cases into a
+                        multi-run collection
+te_article_catalog      Build a navigable article-project catalog
+te_article_catalog_summary
+                        Summarize article evidence by experiment and
+                        role
+te_article_classify_object
+                        Classify a first-article R object
+te_article_display_state
+                        Determine the display state of an imported
+                        article case
+te_article_experiment_registry
+                        Registry of first-article experiment purposes
+te_article_filter       Filter an article-project catalog
+te_article_import_object
+                        Import an in-memory first-article object
+te_article_inventory    Inventory RDS evidence in a first-article
+                        project directory
+te_article_load_case_set
+                        Load multiple article cases from exact catalog
+                        rows
+te_article_load_catalog_case
+                        Load one case from a catalog
+te_article_load_rds     Load a first-article RDS object
+te_article_project_registry
+                        Read the article experiment registry from a
+                        project directory
+te_bridge               Convert an object through a registered bridge
+te_bridge_ml_variable   Bridge a real ML.DSNeuralRNAS learned variable
+te_bridge_registry      Inspect registered bridges
+te_bridge_rnas_mlp      Bridge a real DSNeuralRNAS MLP training object
+te_capabilities         Inspect TraceExplorer observability
+                        capabilities
+te_contract             TraceExplorer observable contract
+te_control_space        Control-dynamics 3D space
+te_demo_mlp_trace       Didactic MLP-like learning trace
+te_demo_multilayer_trace
+                        Construct a deterministic arbitrary-depth MLP
+                        trace for architecture teaching
+te_detect_source        Detect a source object
+te_evidence_analytical_contrast
+                        Compare a trace with an analytical reference
+                        when supported
+te_evidence_extension_points
+                        Extension points for future ecosystems
+te_evidence_level_contract
+                        Five-level DSNeuralRNAS evidence contract
+te_evidence_stack       Build the five-level evidence stack
+te_evidence_stack_decisions
+                        Implementation decisions derived from evidence
+                        availability
+te_evidence_stack_levels
+                        Evidence-stack level table
+te_example_ml_variable
+                        Generate a small real ML.DSNeuralRNAS MLP
+                        variable example
+te_example_multirun_ml
+                        Build a real ML.DSNeuralRNAS multi-run example
+te_example_rnas_mlp     Generate a small real DSNeuralRNAS MLP example
+te_export_article_comparison_bundle
+                        Export an article-comparison evidence bundle
+te_export_evidence_bundle
+                        Export an auditable TraceExplorer evidence
+                        directory
+te_formalspec_preflight
+                        Preflight for the frozen FormalSpec article
+                        baseline
+te_formalspec_protocol
+                        Frozen FormalSpec protocol used by
+                        TraceExplorer
+te_formalspec_summary   Summarize a complete FormalSpec analysis
+te_layer_dynamics       Aggregate parameter dynamics at layer level
+te_learning_space       Learning-dynamics 3D space
+te_mlp_architecture     Architecture contract for a dense multilayer
+                        perceptron
+te_multirun             Create a multi-run TraceExplorer collection
+te_multirun_architectures
+                        Architecture comparison table across runs
+te_multirun_formalspec
+                        Apply the frozen FormalSpec pipeline
+                        independently to each run
+te_multirun_formalspec_summary
+                        FormalSpec summary across runs
+te_multirun_index       Descriptive index of a multi-run collection
+te_multirun_semantic_data
+                        FormalSpec semantic data across runs
+te_multirun_trace_data
+                        Long canonical data for multiple runs
+te_normalized_time      Normalized learning time
+te_observed_data_profile
+                        Conservative observed-data profile
+te_parameter_block_dynamics
+                        Summarize parameter history by layer and
+                        parameter type
+te_parameter_map        Create a long-form parameter map
+te_parameter_map_data   Extract parameter-map data
+te_parameter_map_ml_variable
+                        Build an exact parameter map from
+                        ML.DSNeuralRNAS theta history
+te_parameter_space      Parameter-dynamics 3D space
+te_parameter_trajectories
+                        Parameter trajectories from a trace parameter
+                        map
+te_plotly_axis_spec     Plotly axis specification
+te_regime_feature_space
+                        FormalSpec regime-feature 3D space
+te_register_bridge      Register a TraceExplorer bridge
+te_register_default_bridges
+                        Register default ecosystem bridges
+te_resolve_space        Resolve a valid 3D space for a trace
+te_run_formalspec       Run Trace -> Observables -> Windows -> Psi ->
+                        Gamma -> Phi
+te_space_availability   Report 3D-space availability for a trace
+te_to_formalspec        Convert a TraceExplorer trace to a frozen
+                        FormalSpec trace
+te_trace                Create a canonical TraceExplorer trace
+te_trace_data           Extract trace data
+te_traceability_index   Build a traceability index
+te_validate_analytical_reference
+                        Validate an analytical reference
+te_validate_architecture
+                        Validate architecture contract
+te_validate_article_case_set
+                        Validate an article comparison set
+te_validate_evidence_stack
+                        Validate an evidence stack
+te_validate_formalspec_analysis
+                        Validate a complete FormalSpec analysis
+te_validate_multirun    Validate a multi-run collection
+te_validate_multirun_formalspec
+                        Validate multi-run FormalSpec results
+te_validate_trace       Validate a canonical trace data frame
+te_verify_parameter_decomposition
+                        Verify global norm decomposition from parameter
+                        map
+te_visual_spec          Visual specification for TraceExplorer plots
+te_webgl_display_policy
+                        Resolve browser visualization policy

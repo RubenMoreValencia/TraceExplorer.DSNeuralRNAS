@@ -1,0 +1,9 @@
+field,level,math_role,description
+iter,required,k,Orden de la actualización
+loss,required,L_k,Pérdida observada
+grad_norm,recommended,||grad L_k||_2,Norma del gradiente
+eta,recommended,eta_k,Tasa de aprendizaje
+param_norm,recommended,||theta_k||_2,Norma paramétrica global
+param_velocity,recommended,||theta_k-theta_{k-1}||_2,Velocidad paramétrica
+delta_loss,derived,Delta L_k,Cambio de pérdida
+time,optional,t_k,Tiempo continuo o físico

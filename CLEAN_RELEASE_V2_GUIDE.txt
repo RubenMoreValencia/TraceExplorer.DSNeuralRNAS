@@ -1,0 +1,20 @@
+TraceExplorer.DSNeuralRNAS — CLEAN FINAL RELEASE v2
+===================================================
+
+Key change:
+- R CMD build is executed against a curated temporary package source stage.
+- Only DESCRIPTION, NAMESPACE, LICENSE, R/, man/, tests/, and inst/ are staged.
+- README.md, tools/, CLEAN_* files, _release/, and logs cannot enter the tarball.
+- All staged source timestamps are normalized one hour into the past.
+- The complete release/promotion flow runs inside a function so DESCRIPTION
+  rollback occurs only on actual failure.
+
+Run:
+
+pkg_dir <- "/Users/rubenmorevalencia/Desktop/SYJ/TraceExplorer.DSNeuralRNAS"
+setwd(pkg_dir)
+source("tools/FINAL_RELEASE.R")
+
+Expected final message:
+
+TE-1.0.0-DSNEURAL-FORMALSPEC READY

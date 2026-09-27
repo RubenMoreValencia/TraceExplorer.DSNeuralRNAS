@@ -1,0 +1,68 @@
+.te_release_root <- function() {
+  normalizePath(getwd(), winslash = "/", mustWork = TRUE)
+}
+
+.te_release_dir <- function(root = .te_release_root()) {
+  d <- file.path(root, "release", "results")
+  dir.create(d, recursive = TRUE, showWarnings = FALSE)
+  d
+}
+
+.te_release_write <- function(name, value, detail = "", root = .te_release_root()) {
+  d <- .te_release_dir(root)
+  path <- file.path(d, paste0(name, ".csv"))
+  utils::write.csv(
+    data.frame(
+      gate = name,
+      status = value,
+      detail = detail,
+      timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S %z"),
+      stringsAsFactors = FALSE
+    ),
+    path,
+    row.names = FALSE,
+    fileEncoding = "UTF-8"
+  )
+  invisible(path)
+}
+
+.te_release_read_status <- function(name, root = .te_release_root()) {
+  path <- file.path(root, "release", "results", paste0(name, ".csv"))
+  if (!file.exists(path)) return(NA_character_)
+  as.character(utils::read.csv(path, stringsAsFactors = FALSE)$status[[1L]])
+}
+
+.te_release_assert_root <- function(root = .te_release_root()) {
+  stopifnot(file.exists(file.path(root, "DESCRIPTION")))
+  d <- read.dcf(file.path(root, "DESCRIPTION"))
+  if (!identical(unname(d[1, "Package"]), "TraceExplorer.DSNeuralRNAS")) {
+    stop("Run this script from the TraceExplorer.DSNeuralRNAS package root.", call. = FALSE)
+  }
+  invisible(root)
+}
+
+.te_release_md5_tree <- function(root, include = NULL, exclude_regex = NULL) {
+  files <- list.files(root, recursive = TRUE, full.names = TRUE, all.files = FALSE)
+  files <- files[file.info(files)$isdir %in% FALSE]
+  rel <- substring(files, nchar(root) + 2L)
+  if (!is.null(include)) {
+    keep <- Reduce(`|`, lapply(include, function(p) grepl(p, rel)))
+    files <- files[keep]; rel <- rel[keep]
+  }
+  if (!is.null(exclude_regex)) {
+    keep <- !grepl(exclude_regex, rel)
+    files <- files[keep]; rel <- rel[keep]
+  }
+  md5 <- tools::md5sum(files)
+  data.frame(file = rel, md5 = unname(md5), stringsAsFactors = FALSE)
+}
+
+.te_release_r_bin <- function() {
+  file.path(R.home("bin"), if (.Platform$OS.type == "windows") "R.exe" else "R")
+}
+
+.te_release_system2 <- function(command, args, stdout, stderr = stdout, env = character()) {
+  status <- system2(command, args = args, stdout = stdout, stderr = stderr, env = env)
+  if (is.null(status)) status <- 0L
+  as.integer(status)
+}

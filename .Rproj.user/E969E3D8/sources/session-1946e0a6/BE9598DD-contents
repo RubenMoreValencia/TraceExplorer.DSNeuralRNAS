@@ -1,0 +1,193 @@
+
+#' Report 3D-space availability for a trace
+#'
+#' Availability is determined only from evidence actually present in the
+#' canonical trace. A missing observable is never imputed for visualization.
+#'
+#' @param trace te_trace.
+#' @return data.frame with space, label, available and reason.
+#' @export
+te_space_availability <- function(trace) {
+  if (!inherits(trace, "te_trace")) {
+    stop("Expected te_trace.", call. = FALSE)
+  }
+
+  d <- te_trace_data(trace)
+
+  has_signal <- function(name) {
+    name %in% names(d) &&
+      is.numeric(d[[name]]) &&
+      any(is.finite(d[[name]]))
+  }
+
+  learning_ok <- has_signal("grad_norm")
+  parameter_ok <- has_signal("param_norm") &&
+    has_signal("param_velocity")
+  control_ok <- has_signal("eta") &&
+    has_signal("grad_norm")
+
+  data.frame(
+    space = c("learning", "parameter", "control"),
+    label = c(
+      "Dinámica del aprendizaje",
+      "Dinámica paramétrica",
+      "Dinámica de control"
+    ),
+    available = c(
+      learning_ok,
+      parameter_ok,
+      control_ok
+    ),
+    reason = c(
+      if (learning_ok) {
+        "Disponible: loss y grad_norm observables."
+      } else {
+        "No disponible: la fuente no conserva grad_norm observable."
+      },
+      if (parameter_ok) {
+        "Disponible: param_norm y param_velocity observables."
+      } else {
+        paste0(
+          "No disponible: se requieren param_norm y param_velocity. ",
+          "TraceExplorer no inventa velocidad paramétrica ausente."
+        )
+      },
+      if (control_ok) {
+        "Disponible: eta y grad_norm observables."
+      } else {
+        "No disponible: se requieren eta y grad_norm observables."
+      }
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Learning-dynamics 3D space
+#'
+#' x = normalized learning time,
+#' y = log(loss / initial loss),
+#' z = log(1 + gradient norm).
+#'
+#' @export
+te_learning_space <- function(trace) {
+  d <- te_trace_data(trace)
+  if (!"grad_norm" %in% names(d)) {
+    stop("Learning space requires grad_norm.", call. = FALSE)
+  }
+  data.frame(
+    iter = d$iter,
+    x = te_normalized_time(trace),
+    y = .te_safe_log_ratio(d$loss),
+    z = log1p(pmax(d$grad_norm, 0)),
+    x_label = "Tiempo normalizado de aprendizaje",
+    y_label = "log(L_k / L_0)",
+    z_label = "log(1 + ||grad L_k||)",
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Parameter-dynamics 3D space
+#'
+#' @export
+te_parameter_space <- function(trace) {
+  d <- te_trace_data(trace)
+  req <- c("param_norm", "param_velocity")
+  if (!all(req %in% names(d))) {
+    stop(
+      "Parameter space requires param_norm and param_velocity.",
+      call. = FALSE
+    )
+  }
+  data.frame(
+    iter = d$iter,
+    x = te_normalized_time(trace),
+    y = d$param_norm,
+    z = d$param_velocity,
+    x_label = "Tiempo normalizado de aprendizaje",
+    y_label = "||theta_k||",
+    z_label = "||theta_k-theta_{k-1}||",
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Control-dynamics 3D space
+#'
+#' @export
+te_control_space <- function(trace) {
+  d <- te_trace_data(trace)
+  req <- c("eta", "grad_norm")
+  if (!all(req %in% names(d))) {
+    stop(
+      "Control space requires eta and grad_norm.",
+      call. = FALSE
+    )
+  }
+  data.frame(
+    iter = d$iter,
+    x = te_normalized_time(trace),
+    y = d$eta,
+    z = d$grad_norm,
+    x_label = "Tiempo normalizado de aprendizaje",
+    y_label = "eta_k",
+    z_label = "||grad L_k||",
+    stringsAsFactors = FALSE
+  )
+}
+
+#' FormalSpec regime-feature 3D space
+#'
+#' Coordinates are the actual FormalSpec window features used to support
+#' candidate-regime interpretation:
+#' loss slope, mean absolute loss change and loss oscillation rate.
+#'
+#' @param analysis Output of te_run_formalspec().
+#' @return data.frame.
+#' @export
+te_regime_feature_space <- function(analysis) {
+  if (!inherits(analysis, "te_formalspec_analysis")) {
+    stop(
+      "Expected te_formalspec_analysis.",
+      call. = FALSE
+    )
+  }
+  te_validate_formalspec_analysis(analysis, error = TRUE)
+
+  w <- DSNeuralRNAS.FormalSpec::dsfs_windows_data(
+    analysis$windows
+  )
+  cnd <- DSNeuralRNAS.FormalSpec::dsfs_regime_candidates_data(
+    analysis$candidates
+  )
+  cnf <- DSNeuralRNAS.FormalSpec::dsfs_confirmed_regimes_data(
+    analysis$confirmed
+  )
+
+  req <- c(
+    "loss_slope",
+    "loss_mean_abs_change",
+    "loss_oscillation_rate"
+  )
+  missing <- setdiff(req, names(w))
+  if (length(missing)) {
+    stop(
+      "FormalSpec windows are missing expected features: ",
+      paste(missing, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  data.frame(
+    window_id = w$window_id,
+    end_iter = w$end_iter,
+    x = w$loss_slope,
+    y = w$loss_mean_abs_change,
+    z = w$loss_oscillation_rate,
+    candidate_regime = cnd$candidate_regime,
+    confirmed_regime = cnf$confirmed_regime,
+    x_label = "Pendiente local de pérdida",
+    y_label = "Cambio absoluto medio de pérdida",
+    z_label = "Tasa de oscilación de pérdida",
+    stringsAsFactors = FALSE
+  )
+}
